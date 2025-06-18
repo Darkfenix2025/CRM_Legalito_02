@@ -2063,6 +2063,76 @@ def get_all_cases():
             close_db(conn)
     return cases
 
+def get_total_honorarios_cobrados_global_por_moneda():
+    """Calcula el total de honorarios cobrados globalmente, desglosado por moneda."""
+    conn = connect_db()
+    totales_por_moneda = {'ARS': 0.0, 'USD': 0.0} # Initialize for known currencies
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT moneda, SUM(monto) as total_cobrado
+                FROM honorarios
+                WHERE estado = 'Cobrado'
+                GROUP BY moneda
+            ''')
+            rows = cursor.fetchall()
+            for row in rows:
+                moneda = row['moneda'] if row['moneda'] else 'ARS' # Default to ARS if null
+                if moneda in totales_por_moneda:
+                    totales_por_moneda[moneda] = row['total_cobrado'] if row['total_cobrado'] is not None else 0.0
+                # else: handle unexpected currencies if necessary, or ignore
+        except sqlite3.Error as e:
+            print(f"Error al obtener total de honorarios cobrados global por moneda: {e}")
+        finally:
+            close_db(conn)
+    return totales_por_moneda
+
+def get_total_gastos_no_reembolsables_global_por_moneda():
+    """Calcula el total de gastos no reembolsables globalmente, desglosado por moneda."""
+    conn = connect_db()
+    totales_por_moneda = {'ARS': 0.0, 'USD': 0.0} # Initialize
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT moneda, SUM(monto) as total_gastos_no_reemb
+                FROM gastos
+                WHERE reembolsable = 0 OR reembolsable = FALSE
+                GROUP BY moneda
+            ''') # reembolsable = 0 or FALSE for robustness
+            rows = cursor.fetchall()
+            for row in rows:
+                moneda = row['moneda'] if row['moneda'] else 'ARS' # Default to ARS if null
+                if moneda in totales_por_moneda:
+                    totales_por_moneda[moneda] = row['total_gastos_no_reemb'] if row['total_gastos_no_reemb'] is not None else 0.0
+        except sqlite3.Error as e:
+            print(f"Error al obtener total de gastos no reembolsables global por moneda: {e}")
+        finally:
+            close_db(conn)
+    return totales_por_moneda
+
+def get_total_facturas_pagadas_global():
+    """Calcula el total de facturas pagadas globalmente. No desglosa por moneda aún."""
+    conn = connect_db()
+    total_pagado = 0.0
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT SUM(monto) as total_pagado
+                FROM facturas
+                WHERE estado = 'Pagada'
+            ''') # Note: Invoices table does not have a 'moneda' field yet.
+            row = cursor.fetchone()
+            if row and row['total_pagado'] is not None:
+                total_pagado = row['total_pagado']
+        except sqlite3.Error as e:
+            print(f"Error al obtener total de facturas pagadas global: {e}")
+        finally:
+            close_db(conn)
+    return total_pagado
+
 # --- FIN NUEVAS FUNCIONES FINANCIERAS Y ETIQUETAS ---
 
 # --- Inicializar la base de datos ---

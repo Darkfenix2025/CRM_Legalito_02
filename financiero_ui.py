@@ -60,6 +60,11 @@ class FinancieroTab(ttk.Frame):
         self.finance_notebook.add(self.resumen_frame, text="Resumen")
         self._create_resumen_tab()
 
+        # --- Pestaña de Resumen Global ---
+        self.resumen_global_frame = ttk.Frame(self.finance_notebook, padding="10")
+        self.finance_notebook.add(self.resumen_global_frame, text="Resumen Global")
+        self._create_resumen_global_tab() # Call to new method
+
     def _create_honorarios_tab(self):
         """Crear la pestaña de gestión de honorarios"""
         self.honorarios_frame.columnconfigure(0, weight=1)
@@ -1128,3 +1133,153 @@ class FinancieroTab(ttk.Frame):
     def get_current_case(self):
         """Obtener el caso actual"""
         return self.current_case
+
+    def _create_resumen_global_tab(self):
+        """Crear la pestaña de Resumen Financiero Global."""
+        self.resumen_global_frame.columnconfigure(0, weight=1) # Allow content to expand
+
+        # Main content frame within the tab
+        content_frame = ttk.Frame(self.resumen_global_frame, padding="10")
+        content_frame.grid(row=0, column=0, sticky="nsew")
+        content_frame.columnconfigure(0, weight=1) # Single column for vertical layout of summaries
+
+        row_idx = 0
+
+        # --- Honorarios Cobrados (Global) ---
+        hon_global_frame = ttk.LabelFrame(content_frame, text="Honorarios Cobrados (Global)", padding="10")
+        hon_global_frame.grid(row=row_idx, column=0, sticky="ew", pady=5)
+        hon_global_frame.columnconfigure(0, weight=1) # Ensure labels pack well
+
+        self.global_hon_cobrado_ars_label = ttk.Label(hon_global_frame, text="Total Cobrado ARS: $0.00", font=('', 11))
+        self.global_hon_cobrado_ars_label.pack(anchor=tk.W)
+        self.global_hon_cobrado_usd_label = ttk.Label(hon_global_frame, text="Total Cobrado USD: $0.00", font=('', 11))
+        self.global_hon_cobrado_usd_label.pack(anchor=tk.W)
+        row_idx += 1
+
+        # --- Gastos No Reembolsables (Global) ---
+        gas_global_frame = ttk.LabelFrame(content_frame, text="Gastos No Reembolsables (Global)", padding="10")
+        gas_global_frame.grid(row=row_idx, column=0, sticky="ew", pady=5)
+        gas_global_frame.columnconfigure(0, weight=1)
+
+        self.global_gas_no_reemb_ars_label = ttk.Label(gas_global_frame, text="Total Gastos ARS: $0.00", font=('', 11))
+        self.global_gas_no_reemb_ars_label.pack(anchor=tk.W)
+        self.global_gas_no_reemb_usd_label = ttk.Label(gas_global_frame, text="Total Gastos USD: $0.00", font=('', 11))
+        self.global_gas_no_reemb_usd_label.pack(anchor=tk.W)
+        row_idx += 1
+
+        # --- Facturación Pagada (Global) ---
+        fac_global_frame = ttk.LabelFrame(content_frame, text="Facturación Pagada (Global)", padding="10")
+        fac_global_frame.grid(row=row_idx, column=0, sticky="ew", pady=5)
+        fac_global_frame.columnconfigure(0, weight=1)
+
+        self.global_fac_pagado_label = ttk.Label(fac_global_frame, text="Total Pagado (Facturas): $0.00", font=('', 11))
+        self.global_fac_pagado_label.pack(anchor=tk.W)
+        row_idx += 1
+
+        # --- Balance Neto Global ---
+        bal_neto_global_frame = ttk.LabelFrame(content_frame, text="Balance Neto Global", padding="10")
+        bal_neto_global_frame.grid(row=row_idx, column=0, sticky="ew", pady=5)
+        bal_neto_global_frame.columnconfigure(0, weight=1)
+
+        # ARS Balance
+        self.global_ingresos_ars_label = ttk.Label(bal_neto_global_frame, text="Ingresos Totales ARS: $0.00", font=('', 11, 'bold'))
+        self.global_ingresos_ars_label.pack(anchor=tk.W)
+        self.global_balance_gastos_ars_label = ttk.Label(bal_neto_global_frame, text="Gastos (No Reemb.) ARS: $0.00")
+        self.global_balance_gastos_ars_label.pack(anchor=tk.W)
+        self.global_balance_neto_ars_label = ttk.Label(bal_neto_global_frame, text="Balance Neto ARS: $0.00", font=('', 12, 'bold'))
+        self.global_balance_neto_ars_label.pack(anchor=tk.W, pady=(0,10))
+
+        # USD Balance
+        self.global_ingresos_usd_label = ttk.Label(bal_neto_global_frame, text="Ingresos Totales USD: $0.00", font=('', 11, 'bold'))
+        self.global_ingresos_usd_label.pack(anchor=tk.W)
+        self.global_balance_gastos_usd_label = ttk.Label(bal_neto_global_frame, text="Gastos (No Reemb.) USD: $0.00")
+        self.global_balance_gastos_usd_label.pack(anchor=tk.W)
+        self.global_balance_neto_usd_label = ttk.Label(bal_neto_global_frame, text="Balance Neto USD: $0.00", font=('', 12, 'bold'))
+        self.global_balance_neto_usd_label.pack(anchor=tk.W)
+        row_idx += 1
+
+        # --- Botón de Actualizar ---
+        self.update_global_resumen_btn = ttk.Button(content_frame, text="Actualizar Resumen Global", command=self._load_resumen_global_data)
+        self.update_global_resumen_btn.grid(row=row_idx, column=0, pady=10)
+        row_idx += 1
+
+        # Initialize by loading/clearing the data
+        self._load_resumen_global_data()
+
+    def _load_resumen_global_data(self):
+        """Carga y muestra los datos del Resumen Financiero Global."""
+        self._clear_resumen_global_labels() # Start by clearing to reset to $0.00
+
+        try:
+            # 1. Get aggregated data from the database
+            hon_cobrados_global = self.db_crm.get_total_honorarios_cobrados_global_por_moneda()
+            gas_no_reemb_global = self.db_crm.get_total_gastos_no_reembolsables_global_por_moneda()
+            fac_pagado_global = self.db_crm.get_total_facturas_pagadas_global() # This is a single float value
+
+            # Extract ARS and USD values, defaulting to 0.0 if a currency is not present
+            hc_ars = hon_cobrados_global.get('ARS', 0.0)
+            hc_usd = hon_cobrados_global.get('USD', 0.0)
+
+            gnr_ars = gas_no_reemb_global.get('ARS', 0.0)
+            gnr_usd = gas_no_reemb_global.get('USD', 0.0)
+
+            # 2. Update labels for Honorarios Cobrados (Global)
+            self.global_hon_cobrado_ars_label.config(text=f"Total Cobrado ARS: ${hc_ars:.2f}")
+            self.global_hon_cobrado_usd_label.config(text=f"Total Cobrado USD: ${hc_usd:.2f}")
+
+            # 3. Update labels for Gastos No Reembolsables (Global)
+            self.global_gas_no_reemb_ars_label.config(text=f"Total Gastos ARS: ${gnr_ars:.2f}")
+            self.global_gas_no_reemb_usd_label.config(text=f"Total Gastos USD: ${gnr_usd:.2f}")
+
+            # Also update the specific labels in the Balance General section that show gastos
+            self.global_balance_gastos_ars_label.config(text=f"Gastos (No Reemb.) ARS: ${gnr_ars:.2f}")
+            self.global_balance_gastos_usd_label.config(text=f"Gastos (No Reemb.) USD: ${gnr_usd:.2f}")
+
+
+            # 4. Update label for Facturación Pagada (Global)
+            #    As fac_pagado_global is a single value, we assume it's ARS for now or the system's primary currency.
+            self.global_fac_pagado_label.config(text=f"Total Pagado (Facturas): ${fac_pagado_global:.2f}")
+
+            # 5. Calculate and Update Balance Neto Global
+            #    For now, fac_pagado_global is added to ARS ingresos. This is a known limitation.
+            ingresos_global_ars = hc_ars + fac_pagado_global
+            ingresos_global_usd = hc_usd
+
+            # Gastos for balance are directly the non-reimbursable ones
+            gastos_global_ars = gnr_ars
+            gastos_global_usd = gnr_usd
+
+            balance_neto_global_ars = ingresos_global_ars - gastos_global_ars
+            balance_neto_global_usd = ingresos_global_usd - gastos_global_usd
+
+            self.global_ingresos_ars_label.config(text=f"Ingresos Totales ARS: ${ingresos_global_ars:.2f}")
+            self.global_balance_neto_ars_label.config(
+                text=f"Balance Neto ARS: ${balance_neto_global_ars:.2f}",
+                foreground="darkgreen" if balance_neto_global_ars >= 0 else "darkred"
+            )
+
+            self.global_ingresos_usd_label.config(text=f"Ingresos Totales USD: ${ingresos_global_usd:.2f}")
+            self.global_balance_neto_usd_label.config(
+                text=f"Balance Neto USD: ${balance_neto_global_usd:.2f}",
+                foreground="darkgreen" if balance_neto_global_usd >= 0 else "darkred"
+            )
+
+        except Exception as e:
+            print(f"Error al cargar el resumen financiero global: {e}")
+            messagebox.showerror("Error de Resumen Global", f"No se pudo cargar el resumen global: {e}", parent=self)
+            # Ensure labels are cleared or show error state if loading fails
+            self._clear_resumen_global_labels()
+
+    def _clear_resumen_global_labels(self):
+        """Limpia las etiquetas del Resumen Financiero Global."""
+        labels_to_clear = [
+            self.global_hon_cobrado_ars_label, self.global_hon_cobrado_usd_label,
+            self.global_gas_no_reemb_ars_label, self.global_gas_no_reemb_usd_label,
+            self.global_fac_pagado_label,
+            self.global_ingresos_ars_label, self.global_balance_gastos_ars_label, self.global_balance_neto_ars_label,
+            self.global_ingresos_usd_label, self.global_balance_gastos_usd_label, self.global_balance_neto_usd_label
+        ]
+        for label in labels_to_clear:
+            base_text = label.cget("text").split(":")[0]
+            default_color = "darkgreen" if "Balance Neto" in base_text else "black"
+            label.config(text=f"{base_text}: $0.00", foreground=default_color)
