@@ -149,15 +149,18 @@ class FinancieroTab(ttk.Frame):
         list_frame.columnconfigure(0, weight=1)
         list_frame.rowconfigure(0, weight=1)
 
-        gastos_cols = ('ID', 'Descripción', 'Monto', 'Fecha', 'Categoría', 'Reembolsable')
+        gastos_cols = ('ID', 'Descripción', 'Monto', 'Moneda', 'Fecha', 'Categoría', 'Reembolsable')
         self.gastos_tree = ttk.Treeview(list_frame, columns=gastos_cols, show='headings', selectmode='browse')
 
         for col in gastos_cols:
             self.gastos_tree.heading(col, text=col)
+        self.gastos_tree.heading('Moneda', text='Moneda')
+
 
         self.gastos_tree.column('ID', width=40, stretch=tk.NO, anchor=tk.CENTER)
         self.gastos_tree.column('Descripción', width=200, stretch=True)
         self.gastos_tree.column('Monto', width=100, stretch=tk.NO, anchor=tk.E)
+        self.gastos_tree.column('Moneda', width=60, stretch=tk.NO, anchor=tk.CENTER)
         self.gastos_tree.column('Fecha', width=100, stretch=tk.NO)
         self.gastos_tree.column('Categoría', width=100, stretch=tk.NO)
         self.gastos_tree.column('Reembolsable', width=80, stretch=tk.NO)
@@ -306,14 +309,26 @@ class FinancieroTab(ttk.Frame):
         gas_resumen_frame = ttk.LabelFrame(resumen_panel, text="Resumen de Gastos", padding="10")
         gas_resumen_frame.grid(row=0, column=1, sticky='nsew', padx=(5, 0), pady=(0, 5))
 
-        self.gas_total_label = ttk.Label(gas_resumen_frame, text="Total: $0.00", font=('', 12, 'bold'))
-        self.gas_total_label.pack(anchor=tk.W)
+        # self.gas_total_label = ttk.Label(gas_resumen_frame, text="Total: $0.00", font=('', 12, 'bold'))
+        # self.gas_total_label.pack(anchor=tk.W)
+        # self.gas_reembolsable_label = ttk.Label(gas_resumen_frame, text="Reembolsable: $0.00")
+        # self.gas_reembolsable_label.pack(anchor=tk.W)
+        # self.gas_no_reembolsable_label = ttk.Label(gas_resumen_frame, text="No reembolsable: $0.00")
+        # self.gas_no_reembolsable_label.pack(anchor=tk.W)
 
-        self.gas_reembolsable_label = ttk.Label(gas_resumen_frame, text="Reembolsable: $0.00")
-        self.gas_reembolsable_label.pack(anchor=tk.W)
+        self.gas_total_ars_label = ttk.Label(gas_resumen_frame, text="Total ARS: $0.00", font=('', 11, 'bold'))
+        self.gas_total_ars_label.pack(anchor=tk.W)
+        self.gas_reembolsable_ars_label = ttk.Label(gas_resumen_frame, text="Reembolsable ARS: $0.00")
+        self.gas_reembolsable_ars_label.pack(anchor=tk.W)
+        self.gas_no_reembolsable_ars_label = ttk.Label(gas_resumen_frame, text="No Reemb. ARS: $0.00")
+        self.gas_no_reembolsable_ars_label.pack(anchor=tk.W, pady=(0,5))
 
-        self.gas_no_reembolsable_label = ttk.Label(gas_resumen_frame, text="No reembolsable: $0.00")
-        self.gas_no_reembolsable_label.pack(anchor=tk.W)
+        self.gas_total_usd_label = ttk.Label(gas_resumen_frame, text="Total USD: $0.00", font=('', 11, 'bold'))
+        self.gas_total_usd_label.pack(anchor=tk.W)
+        self.gas_reembolsable_usd_label = ttk.Label(gas_resumen_frame, text="Reembolsable USD: $0.00")
+        self.gas_reembolsable_usd_label.pack(anchor=tk.W)
+        self.gas_no_reembolsable_usd_label = ttk.Label(gas_resumen_frame, text="No Reemb. USD: $0.00")
+        self.gas_no_reembolsable_usd_label.pack(anchor=tk.W)
 
         # Resumen de Facturación
         fac_resumen_frame = ttk.LabelFrame(resumen_panel, text="Resumen de Facturación", padding="10")
@@ -692,7 +707,8 @@ class FinancieroTab(ttk.Frame):
                 self.gastos_tree.insert('', 'end', values=(
                     gasto['id'],
                     gasto.get('descripcion', ''),
-                    f"${gasto.get('monto', 0.0):.2f}", # Ensure float for formatting
+                    f"${gasto.get('monto', 0.0):.2f}",
+                    gasto.get('moneda', 'ARS'), # Display moneda
                     fecha_display,
                     gasto.get('categoria', ''),
                     reembolsable
@@ -729,6 +745,7 @@ class FinancieroTab(ttk.Frame):
         # Variables
         descripcion_var = tk.StringVar()
         monto_var = tk.StringVar()
+        moneda_gasto_var = tk.StringVar(value="ARS") # Moneda for Gasto
         fecha_var = tk.StringVar()
         categoria_combo_var = tk.StringVar()
         categoria_especificar_var = tk.StringVar()
@@ -746,8 +763,13 @@ class FinancieroTab(ttk.Frame):
         ttk.Entry(main_frame, textvariable=monto_var, width=40).grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10,0))
         row += 1
 
+        ttk.Label(main_frame, text="Moneda:").grid(row=row, column=0, sticky=tk.W, pady=5)
+        ttk.Combobox(main_frame, textvariable=moneda_gasto_var, values=["ARS", "USD"],
+                     state="readonly", width=10).grid(row=row, column=1, sticky=tk.W, pady=5, padx=(10,0))
+        row += 1
+
         ttk.Label(main_frame, text="Fecha:").grid(row=row, column=0, sticky=tk.W, pady=5)
-        fecha_entry = DateEntry(main_frame, width=38, background='darkblue', foreground='white',
+        fecha_entry = DateEntry(main_frame, width=38, background='darkblue', foreground='white', # Adjusted width
                                 borderwidth=2, date_pattern='dd/MM/yyyy', textvariable=fecha_var)
         fecha_entry.grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10,0))
         row += 1
@@ -788,6 +810,7 @@ class FinancieroTab(ttk.Frame):
             if gasto_data:
                 descripcion_var.set(gasto_data.get('descripcion', ''))
                 monto_var.set(str(gasto_data.get('monto', 0.0)))
+                moneda_gasto_var.set(gasto_data.get('moneda', 'ARS')) # Pre-fill moneda
 
                 fecha_db = gasto_data.get('fecha')
                 if fecha_db:
@@ -827,15 +850,16 @@ class FinancieroTab(ttk.Frame):
                        gasto_id, self.current_case['id'], descripcion_var.get(),
                        monto_var.get(), fecha_var.get(), categoria_combo_var.get(),
                        categoria_especificar_var.get(), reembolsable_var.get(),
-                       gasto_data.get('notas', '') if gasto_data else "",  # Pass existing notes or empty
-                       gasto_data.get('comprobante_path', '') if gasto_data else "", # Pass existing path or empty
+                       moneda_gasto_var.get(), # Pass moneda
+                       gasto_data.get('notas', '') if gasto_data else "",
+                       gasto_data.get('comprobante_path', '') if gasto_data else "",
                        dialog
                    )).pack(side=tk.LEFT, padx=(0, 10))
         ttk.Button(buttons_frame, text="Cancelar", command=dialog.destroy).pack(side=tk.LEFT)
 
     def _save_gasto(self, gasto_id, case_id, descripcion, monto_str, fecha_str,
                     categoria_selected, categoria_especificada, reembolsable_str,
-                    notas_val, comprobante_path_val, dialog_ref):
+                    moneda, notas_val, comprobante_path_val, dialog_ref): # Added moneda
         if not descripcion.strip():
             messagebox.showwarning("Campo Requerido", "La descripción es obligatoria.", parent=dialog_ref)
             return
@@ -864,16 +888,15 @@ class FinancieroTab(ttk.Frame):
              messagebox.showwarning("Campo Requerido", "La categoría es obligatoria.", parent=dialog_ref)
              return
 
-
         reembolsable_int = 1 if reembolsable_str == "Sí" else 0
 
         try:
             if gasto_id:
                 self.db_crm.update_gasto(gasto_id, case_id, descripcion, monto_float, fecha_db_format,
-                                         final_categoria, reembolsable_int, notas_val, comprobante_path_val)
+                                         final_categoria, reembolsable_int, moneda, notas_val, comprobante_path_val)
             else:
                 self.db_crm.add_gasto(case_id, descripcion, monto_float, fecha_db_format,
-                                      final_categoria, reembolsable_int, notas_val, comprobante_path_val)
+                                      final_categoria, reembolsable_int, moneda, notas_val, comprobante_path_val)
 
             dialog_ref.destroy()
             self._load_gastos(case_id)
@@ -994,6 +1017,14 @@ class FinancieroTab(ttk.Frame):
             hon_cobrado_usd = 0.0
             hon_pendiente_usd = 0.0
 
+            # Initialize Currency-Specific Accumulators for Expenses
+            gas_total_ars = 0.0
+            gas_reembolsable_ars = 0.0
+            gas_no_reembolsable_ars = 0.0
+            gas_total_usd = 0.0
+            gas_reembolsable_usd = 0.0
+            gas_no_reembolsable_usd = 0.0
+
             # Calcular totales de honorarios
             honorarios = self.db_crm.get_honorarios_by_case(case_id)
             for h in honorarios:
@@ -1015,9 +1046,22 @@ class FinancieroTab(ttk.Frame):
 
             # Calcular totales de gastos
             gastos = self.db_crm.get_gastos_by_case(case_id)
-            gas_total = sum(g.get('monto', 0) for g in gastos)
-            gas_reembolsable = sum(g.get('monto', 0) for g in gastos if g.get('reembolsable'))
-            gas_no_reembolsable = gas_total - gas_reembolsable
+            for g in gastos:
+                monto = g.get('monto', 0.0)
+                moneda = g.get('moneda', 'ARS') # Default to ARS if moneda is not set for an expense
+
+                if moneda == 'ARS':
+                    gas_total_ars += monto
+                    if g.get('reembolsable'): # Assumes reembolsable is 1 for True, 0 for False
+                        gas_reembolsable_ars += monto
+                elif moneda == 'USD':
+                    gas_total_usd += monto
+                    if g.get('reembolsable'):
+                        gas_reembolsable_usd += monto
+
+            gas_no_reembolsable_ars = gas_total_ars - gas_reembolsable_ars
+            gas_no_reembolsable_usd = gas_total_usd - gas_reembolsable_usd
+
 
             # Calcular totales de facturación
             facturas = self.db_crm.get_facturas_by_case(case_id)
@@ -1034,9 +1078,13 @@ class FinancieroTab(ttk.Frame):
             self.hon_cobrado_usd_label.config(text=f"Cobrado USD: ${hon_cobrado_usd:.2f}")
             self.hon_pendiente_usd_label.config(text=f"Pendiente USD: ${hon_pendiente_usd:.2f}")
 
-            self.gas_total_label.config(text=f"Total: ${gas_total:.2f}")
-            self.gas_reembolsable_label.config(text=f"Reembolsable: ${gas_reembolsable:.2f}")
-            self.gas_no_reembolsable_label.config(text=f"No reembolsable: ${gas_no_reembolsable:.2f}")
+            self.gas_total_ars_label.config(text=f"Total ARS: ${gas_total_ars:.2f}")
+            self.gas_reembolsable_ars_label.config(text=f"Reembolsable ARS: ${gas_reembolsable_ars:.2f}")
+            self.gas_no_reembolsable_ars_label.config(text=f"No Reemb. ARS: ${gas_no_reembolsable_ars:.2f}")
+
+            self.gas_total_usd_label.config(text=f"Total USD: ${gas_total_usd:.2f}")
+            self.gas_reembolsable_usd_label.config(text=f"Reembolsable USD: ${gas_reembolsable_usd:.2f}")
+            self.gas_no_reembolsable_usd_label.config(text=f"No Reemb. USD: ${gas_no_reembolsable_usd:.2f}")
 
             self.fac_total_label.config(text=f"Total facturado: ${fac_total:.2f}")
             self.fac_pagado_label.config(text=f"Pagado: ${fac_pagado:.2f}")
@@ -1045,7 +1093,10 @@ class FinancieroTab(ttk.Frame):
             # Balance general
             ingresos_combinados_honorarios = hon_cobrado_ars + hon_cobrado_usd # This is a mixed currency sum for now
             ingresos = ingresos_combinados_honorarios + fac_pagado # fac_pagado might also have mixed currencies eventually
-            gastos_totales = gas_no_reembolsable  # Solo gastos no reembolsables afectan el balance
+
+            gastos_totales_combinados = gas_no_reembolsable_ars + gas_no_reembolsable_usd # Mixed currency sum
+            gastos_totales = gastos_totales_combinados
+
             balance_neto = ingresos - gastos_totales
 
             self.balance_ingresos_label.config(text=f"Ingresos: ${ingresos:.2f}")
@@ -1063,7 +1114,8 @@ class FinancieroTab(ttk.Frame):
         labels = [
             self.hon_total_ars_label, self.hon_cobrado_ars_label, self.hon_pendiente_ars_label,
             self.hon_total_usd_label, self.hon_cobrado_usd_label, self.hon_pendiente_usd_label,
-            self.gas_total_label, self.gas_reembolsable_label, self.gas_no_reembolsable_label,
+            self.gas_total_ars_label, self.gas_reembolsable_ars_label, self.gas_no_reembolsable_ars_label,
+            self.gas_total_usd_label, self.gas_reembolsable_usd_label, self.gas_no_reembolsable_usd_label,
             self.fac_total_label, self.fac_pagado_label, self.fac_pendiente_label,
             self.balance_ingresos_label, self.balance_gastos_label, self.balance_neto_label
         ]

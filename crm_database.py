@@ -275,6 +275,7 @@ def create_tables():
                     fecha TEXT NOT NULL,
                     categoria TEXT NOT NULL DEFAULT 'General',  -- General, Viajes, Comunicaciones, Documentos, Otros
                     reembolsable INTEGER DEFAULT 1,             -- 0 = No, 1 = Sí
+                    moneda TEXT, -- New column for currency
                     fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     notas TEXT,
                     comprobante_path TEXT,                      -- Ruta al archivo del comprobante
@@ -381,6 +382,16 @@ def create_tables():
 
             except sqlite3.Error as e_alter:
                 print(f"Error when trying to ALTER TABLE honorarios or check columns: {e_alter}")
+
+            # Add ALTER TABLE logic for gastos (moneda)
+            try:
+                cursor.execute("PRAGMA table_info(gastos)")
+                columns_gastos = [info[1] for info in cursor.fetchall()]
+                if 'moneda' not in columns_gastos:
+                    cursor.execute("ALTER TABLE gastos ADD COLUMN moneda TEXT")
+                    print("Column 'moneda' added to 'gastos' table.")
+            except sqlite3.Error as e_alter_gastos:
+                print(f"Error when trying to ALTER TABLE gastos or check columns: {e_alter_gastos}")
 
             conn.commit()
             print("Tablas verificadas/creadas con éxito (partes_intervinientes actualizada).")
@@ -1714,7 +1725,7 @@ def get_honorario_by_id(honorario_id):
     return honorario_data
 
 # === GASTOS ===
-def add_gasto(caso_id, descripcion, monto, fecha, categoria="General", reembolsable=True, notas="", comprobante_path=""):
+def add_gasto(caso_id, descripcion, monto, fecha, categoria="General", reembolsable=True, moneda="ARS", notas="", comprobante_path=""):
     """Agregar un nuevo gasto"""
     conn = connect_db()
     success = False
@@ -1722,9 +1733,9 @@ def add_gasto(caso_id, descripcion, monto, fecha, categoria="General", reembolsa
         try:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO gastos (caso_id, descripcion, monto, fecha, categoria, reembolsable, notas, comprobante_path, fecha_creacion)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-            ''', (caso_id, descripcion, monto, fecha, categoria, 1 if reembolsable else 0, notas, comprobante_path))
+                INSERT INTO gastos (caso_id, descripcion, monto, fecha, categoria, reembolsable, moneda, notas, comprobante_path, fecha_creacion)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ''', (caso_id, descripcion, monto, fecha, categoria, 1 if reembolsable else 0, moneda, notas, comprobante_path))
             conn.commit()
             success = True
         except sqlite3.Error as e:
@@ -1754,7 +1765,7 @@ def get_gastos_by_case(caso_id):
             close_db(conn)
     return gastos
 
-def update_gasto(gasto_id, caso_id, descripcion, monto, fecha, categoria, reembolsable, notas="", comprobante_path=""):
+def update_gasto(gasto_id, caso_id, descripcion, monto, fecha, categoria, reembolsable, moneda="ARS", notas="", comprobante_path=""):
     """Actualizar un gasto existente"""
     conn = connect_db()
     success = False
@@ -1763,9 +1774,9 @@ def update_gasto(gasto_id, caso_id, descripcion, monto, fecha, categoria, reembo
             cursor = conn.cursor()
             cursor.execute('''
                 UPDATE gastos 
-                SET caso_id = ?, descripcion = ?, monto = ?, fecha = ?, categoria = ?, reembolsable = ?, notas = ?, comprobante_path = ?
+                SET caso_id = ?, descripcion = ?, monto = ?, fecha = ?, categoria = ?, reembolsable = ?, moneda = ?, notas = ?, comprobante_path = ?
                 WHERE id = ?
-            ''', (caso_id, descripcion, monto, fecha, categoria, 1 if reembolsable else 0, notas, comprobante_path, gasto_id))
+            ''', (caso_id, descripcion, monto, fecha, categoria, 1 if reembolsable else 0, moneda, notas, comprobante_path, gasto_id))
             conn.commit()
             success = True
         except sqlite3.Error as e:
