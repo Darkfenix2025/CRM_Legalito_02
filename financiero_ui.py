@@ -257,10 +257,10 @@ class FinancieroTab(ttk.Frame):
         self.facturas_tree.bind('<<TreeviewSelect>>', self.on_factura_select)
 
     def _create_resumen_tab(self):
-        """Crear la pestaña de resumen financiero"""
+        """Crear la pestaña de resumen financiero con desglose multimoneda para todas las secciones relevantes."""
         self.resumen_frame.columnconfigure(0, weight=1)
-        self.resumen_frame.rowconfigure(0, weight=0)
-        self.resumen_frame.rowconfigure(1, weight=1)
+        self.resumen_frame.rowconfigure(0, weight=0) # Info caso
+        self.resumen_frame.rowconfigure(1, weight=1) # Panel principal de resumen
 
         # Información del caso
         info_frame = ttk.LabelFrame(self.resumen_frame, text="Caso Actual", padding="5")
@@ -271,32 +271,24 @@ class FinancieroTab(ttk.Frame):
         self.resumen_case_label = ttk.Label(info_frame, text="Ningún caso seleccionado", foreground="gray")
         self.resumen_case_label.grid(row=0, column=1, sticky=tk.EW)
 
-        # Panel de resumen
+        # Panel de resumen principal
         resumen_panel = ttk.Frame(self.resumen_frame)
         resumen_panel.grid(row=1, column=0, sticky='nsew')
-        resumen_panel.columnconfigure(0, weight=1)
-        resumen_panel.columnconfigure(1, weight=1)
-        resumen_panel.rowconfigure(0, weight=1)
-        resumen_panel.rowconfigure(1, weight=1)
+        resumen_panel.columnconfigure(0, weight=1) # Columna para Honorarios y Facturación
+        resumen_panel.columnconfigure(1, weight=1) # Columna para Gastos y Balance General
+        resumen_panel.rowconfigure(0, weight=1)    # Fila para Honorarios y Gastos
+        resumen_panel.rowconfigure(1, weight=1)    # Fila para Facturación y Balance
 
-        # Resumen de Honorarios
+        # --- Resumen de Honorarios ---
         hon_resumen_frame = ttk.LabelFrame(resumen_panel, text="Resumen de Honorarios", padding="10")
         hon_resumen_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 5), pady=(0, 5))
 
-        # Comment out or remove the old labels:
-        # self.hon_total_label = ttk.Label(hon_resumen_frame, text="Total: $0.00", font=('', 12, 'bold'))
-        # self.hon_total_label.pack(anchor=tk.W)
-        # self.hon_cobrado_label = ttk.Label(hon_resumen_frame, text="Cobrado: $0.00")
-        # self.hon_cobrado_label.pack(anchor=tk.W)
-        # self.hon_pendiente_label = ttk.Label(hon_resumen_frame, text="Pendiente: $0.00")
-        # self.hon_pendiente_label.pack(anchor=tk.W)
-
-        self.hon_total_ars_label = ttk.Label(hon_resumen_frame, text="Total ARS: $0.00", font=('', 11, 'bold')) # Slightly smaller font
+        self.hon_total_ars_label = ttk.Label(hon_resumen_frame, text="Total ARS: $0.00", font=('', 11, 'bold'))
         self.hon_total_ars_label.pack(anchor=tk.W)
         self.hon_cobrado_ars_label = ttk.Label(hon_resumen_frame, text="Cobrado ARS: $0.00")
         self.hon_cobrado_ars_label.pack(anchor=tk.W)
         self.hon_pendiente_ars_label = ttk.Label(hon_resumen_frame, text="Pendiente ARS: $0.00")
-        self.hon_pendiente_ars_label.pack(anchor=tk.W, pady=(0,5)) # Add some padding below ARS block
+        self.hon_pendiente_ars_label.pack(anchor=tk.W, pady=(0,5))
 
         self.hon_total_usd_label = ttk.Label(hon_resumen_frame, text="Total USD: $0.00", font=('', 11, 'bold'))
         self.hon_total_usd_label.pack(anchor=tk.W)
@@ -305,56 +297,52 @@ class FinancieroTab(ttk.Frame):
         self.hon_pendiente_usd_label = ttk.Label(hon_resumen_frame, text="Pendiente USD: $0.00")
         self.hon_pendiente_usd_label.pack(anchor=tk.W)
 
-        # Resumen de Gastos
+        # --- Resumen de Gastos ---
         gas_resumen_frame = ttk.LabelFrame(resumen_panel, text="Resumen de Gastos", padding="10")
         gas_resumen_frame.grid(row=0, column=1, sticky='nsew', padx=(5, 0), pady=(0, 5))
-
-        # self.gas_total_label = ttk.Label(gas_resumen_frame, text="Total: $0.00", font=('', 12, 'bold'))
-        # self.gas_total_label.pack(anchor=tk.W)
-        # self.gas_reembolsable_label = ttk.Label(gas_resumen_frame, text="Reembolsable: $0.00")
-        # self.gas_reembolsable_label.pack(anchor=tk.W)
-        # self.gas_no_reembolsable_label = ttk.Label(gas_resumen_frame, text="No reembolsable: $0.00")
-        # self.gas_no_reembolsable_label.pack(anchor=tk.W)
 
         self.gas_total_ars_label = ttk.Label(gas_resumen_frame, text="Total ARS: $0.00", font=('', 11, 'bold'))
         self.gas_total_ars_label.pack(anchor=tk.W)
         self.gas_reembolsable_ars_label = ttk.Label(gas_resumen_frame, text="Reembolsable ARS: $0.00")
         self.gas_reembolsable_ars_label.pack(anchor=tk.W)
-        self.gas_no_reembolsable_ars_label = ttk.Label(gas_resumen_frame, text="No Reemb. ARS: $0.00")
+        self.gas_no_reembolsable_ars_label = ttk.Label(gas_resumen_frame, text="No Reemb. ARS: $0.00") # Shorter text
         self.gas_no_reembolsable_ars_label.pack(anchor=tk.W, pady=(0,5))
 
         self.gas_total_usd_label = ttk.Label(gas_resumen_frame, text="Total USD: $0.00", font=('', 11, 'bold'))
         self.gas_total_usd_label.pack(anchor=tk.W)
         self.gas_reembolsable_usd_label = ttk.Label(gas_resumen_frame, text="Reembolsable USD: $0.00")
         self.gas_reembolsable_usd_label.pack(anchor=tk.W)
-        self.gas_no_reembolsable_usd_label = ttk.Label(gas_resumen_frame, text="No Reemb. USD: $0.00")
+        self.gas_no_reembolsable_usd_label = ttk.Label(gas_resumen_frame, text="No Reemb. USD: $0.00") # Shorter text
         self.gas_no_reembolsable_usd_label.pack(anchor=tk.W)
 
-        # Resumen de Facturación
+        # --- Resumen de Facturación (sin cambios por ahora, mantiene su estructura original) ---
         fac_resumen_frame = ttk.LabelFrame(resumen_panel, text="Resumen de Facturación", padding="10")
         fac_resumen_frame.grid(row=1, column=0, sticky='nsew', padx=(0, 5), pady=(5, 0))
 
         self.fac_total_label = ttk.Label(fac_resumen_frame, text="Total facturado: $0.00", font=('', 12, 'bold'))
         self.fac_total_label.pack(anchor=tk.W)
-
         self.fac_pagado_label = ttk.Label(fac_resumen_frame, text="Pagado: $0.00")
         self.fac_pagado_label.pack(anchor=tk.W)
-
         self.fac_pendiente_label = ttk.Label(fac_resumen_frame, text="Pendiente: $0.00")
         self.fac_pendiente_label.pack(anchor=tk.W)
 
-        # Balance General
+        # --- Balance General (con nuevas etiquetas para desglose) ---
         balance_frame = ttk.LabelFrame(resumen_panel, text="Balance General", padding="10")
         balance_frame.grid(row=1, column=1, sticky='nsew', padx=(5, 0), pady=(5, 0))
 
-        self.balance_ingresos_label = ttk.Label(balance_frame, text="Ingresos: $0.00", font=('', 12, 'bold'))
-        self.balance_ingresos_label.pack(anchor=tk.W)
+        self.balance_ingresos_ars_label = ttk.Label(balance_frame, text="Ingresos ARS: $0.00", font=('', 11, 'bold'))
+        self.balance_ingresos_ars_label.pack(anchor=tk.W)
+        self.balance_gastos_ars_label = ttk.Label(balance_frame, text="Gastos ARS: $0.00")
+        self.balance_gastos_ars_label.pack(anchor=tk.W)
+        self.balance_neto_ars_label = ttk.Label(balance_frame, text="Balance Neto ARS: $0.00", font=('', 12, 'bold'))
+        self.balance_neto_ars_label.pack(anchor=tk.W, pady=(0,10))
 
-        self.balance_gastos_label = ttk.Label(balance_frame, text="Gastos: $0.00")
-        self.balance_gastos_label.pack(anchor=tk.W)
-
-        self.balance_neto_label = ttk.Label(balance_frame, text="Balance Neto: $0.00", font=('', 14, 'bold'))
-        self.balance_neto_label.pack(anchor=tk.W, pady=(10, 0))
+        self.balance_ingresos_usd_label = ttk.Label(balance_frame, text="Ingresos USD: $0.00", font=('', 11, 'bold'))
+        self.balance_ingresos_usd_label.pack(anchor=tk.W)
+        self.balance_gastos_usd_label = ttk.Label(balance_frame, text="Gastos USD: $0.00")
+        self.balance_gastos_usd_label.pack(anchor=tk.W)
+        self.balance_neto_usd_label = ttk.Label(balance_frame, text="Balance Neto USD: $0.00", font=('', 12, 'bold'))
+        self.balance_neto_usd_label.pack(anchor=tk.W) # Removed pady=(5,0) to make it consistent
 
     # --- Métodos de gestión de casos ---
 
@@ -1025,49 +1013,51 @@ class FinancieroTab(ttk.Frame):
             gas_reembolsable_usd = 0.0
             gas_no_reembolsable_usd = 0.0
 
-            # Calcular totales de honorarios
-            honorarios = self.db_crm.get_honorarios_by_case(case_id)
-            for h in honorarios:
-                monto = h.get('monto', 0.0)
-                moneda = h.get('moneda', 'ARS') # Default to ARS if moneda is not set
+            if case_id is not None: # Proceed only if there's a case_id
+                # Calcular totales de honorarios
+                honorarios = self.db_crm.get_honorarios_by_case(case_id)
+                for h in honorarios:
+                    monto = h.get('monto', 0.0)
+                    moneda = h.get('moneda', 'ARS')
 
-                if moneda == 'ARS':
-                    hon_total_ars += monto
-                    if h.get('estado') == 'Cobrado':
-                        hon_cobrado_ars += monto
-                elif moneda == 'USD':
-                    hon_total_usd += monto
-                    if h.get('estado') == 'Cobrado':
-                        hon_cobrado_usd += monto
-                # Add more currencies here if needed in the future
+                    if moneda == 'ARS':
+                        hon_total_ars += monto
+                        if h.get('estado') == 'Cobrado':
+                            hon_cobrado_ars += monto
+                    elif moneda == 'USD':
+                        hon_total_usd += monto
+                        if h.get('estado') == 'Cobrado':
+                            hon_cobrado_usd += monto
 
-            hon_pendiente_ars = hon_total_ars - hon_cobrado_ars
-            hon_pendiente_usd = hon_total_usd - hon_cobrado_usd
+                hon_pendiente_ars = hon_total_ars - hon_cobrado_ars
+                hon_pendiente_usd = hon_total_usd - hon_cobrado_usd
 
-            # Calcular totales de gastos
-            gastos = self.db_crm.get_gastos_by_case(case_id)
-            for g in gastos:
-                monto = g.get('monto', 0.0)
-                moneda = g.get('moneda', 'ARS') # Default to ARS if moneda is not set for an expense
+                # Calcular totales de gastos
+                gastos = self.db_crm.get_gastos_by_case(case_id)
+                for g in gastos:
+                    monto = g.get('monto', 0.0)
+                    moneda = g.get('moneda', 'ARS')
 
-                if moneda == 'ARS':
-                    gas_total_ars += monto
-                    if g.get('reembolsable'): # Assumes reembolsable is 1 for True, 0 for False
-                        gas_reembolsable_ars += monto
-                elif moneda == 'USD':
-                    gas_total_usd += monto
-                    if g.get('reembolsable'):
-                        gas_reembolsable_usd += monto
+                    if moneda == 'ARS':
+                        gas_total_ars += monto
+                        if g.get('reembolsable'):
+                            gas_reembolsable_ars += monto
+                    elif moneda == 'USD':
+                        gas_total_usd += monto
+                        if g.get('reembolsable'):
+                            gas_reembolsable_usd += monto
 
-            gas_no_reembolsable_ars = gas_total_ars - gas_reembolsable_ars
-            gas_no_reembolsable_usd = gas_total_usd - gas_reembolsable_usd
+                gas_no_reembolsable_ars = gas_total_ars - gas_reembolsable_ars
+                gas_no_reembolsable_usd = gas_total_usd - gas_reembolsable_usd
 
+                # Calcular totales de facturación (assuming single currency for now)
+                facturas = self.db_crm.get_facturas_by_case(case_id)
+                fac_total = sum(f.get('monto', 0) for f in facturas)
+                fac_pagado = sum(f.get('monto', 0) for f in facturas if f.get('estado') == 'Pagada')
+                fac_pendiente = fac_total - fac_pagado
+            else: # No case_id, so all values are zero
+                fac_total = fac_pagado = fac_pendiente = 0.0
 
-            # Calcular totales de facturación
-            facturas = self.db_crm.get_facturas_by_case(case_id)
-            fac_total = sum(f.get('monto', 0) for f in facturas)
-            fac_pagado = sum(f.get('monto', 0) for f in facturas if f.get('estado') == 'Pagada')
-            fac_pendiente = fac_total - fac_pagado
 
             # Actualizar labels de resumen
             self.hon_total_ars_label.config(text=f"Total ARS: ${hon_total_ars:.2f}")
@@ -1090,20 +1080,22 @@ class FinancieroTab(ttk.Frame):
             self.fac_pagado_label.config(text=f"Pagado: ${fac_pagado:.2f}")
             self.fac_pendiente_label.config(text=f"Pendiente: ${fac_pendiente:.2f}")
 
-            # Balance general
-            ingresos_combinados_honorarios = hon_cobrado_ars + hon_cobrado_usd # This is a mixed currency sum for now
-            ingresos = ingresos_combinados_honorarios + fac_pagado # fac_pagado might also have mixed currencies eventually
+            # Balance general - ARS
+            # Assuming fac_pagado is ARS for now, needs currency if multi-currency invoices are implemented
+            ingresos_ars = hon_cobrado_ars + (fac_pagado if self.fac_total_label.cget("text").startswith("Total facturado: $") else 0)
+            gastos_ars = gas_no_reembolsable_ars
+            balance_neto_ars = ingresos_ars - gastos_ars
+            self.balance_ingresos_ars_label.config(text=f"Ingresos ARS: ${ingresos_ars:.2f}")
+            self.balance_gastos_ars_label.config(text=f"Gastos ARS: ${gastos_ars:.2f}")
+            self.balance_neto_ars_label.config(text=f"Balance Neto ARS: ${balance_neto_ars:.2f}", foreground="darkgreen" if balance_neto_ars >= 0 else "darkred")
 
-            gastos_totales_combinados = gas_no_reembolsable_ars + gas_no_reembolsable_usd # Mixed currency sum
-            gastos_totales = gastos_totales_combinados
-
-            balance_neto = ingresos - gastos_totales
-
-            self.balance_ingresos_label.config(text=f"Ingresos: ${ingresos:.2f}")
-            self.balance_gastos_label.config(text=f"Gastos: ${gastos_totales:.2f}")
-            
-            color = "darkgreen" if balance_neto >= 0 else "darkred"
-            self.balance_neto_label.config(text=f"Balance Neto: ${balance_neto:.2f}", foreground=color)
+            # Balance general - USD
+            ingresos_usd = hon_cobrado_usd
+            gastos_usd = gas_no_reembolsable_usd
+            balance_neto_usd = ingresos_usd - gastos_usd
+            self.balance_ingresos_usd_label.config(text=f"Ingresos USD: ${ingresos_usd:.2f}")
+            self.balance_gastos_usd_label.config(text=f"Gastos USD: ${gastos_usd:.2f}")
+            self.balance_neto_usd_label.config(text=f"Balance Neto USD: ${balance_neto_usd:.2f}", foreground="darkgreen" if balance_neto_usd >= 0 else "darkred")
 
         except Exception as e:
             print(f"Error al actualizar resumen: {e}")
@@ -1117,14 +1109,16 @@ class FinancieroTab(ttk.Frame):
             self.gas_total_ars_label, self.gas_reembolsable_ars_label, self.gas_no_reembolsable_ars_label,
             self.gas_total_usd_label, self.gas_reembolsable_usd_label, self.gas_no_reembolsable_usd_label,
             self.fac_total_label, self.fac_pagado_label, self.fac_pendiente_label,
-            self.balance_ingresos_label, self.balance_gastos_label, self.balance_neto_label
+            self.balance_ingresos_ars_label, self.balance_gastos_ars_label, self.balance_neto_ars_label,
+            self.balance_ingresos_usd_label, self.balance_gastos_usd_label, self.balance_neto_usd_label
         ]
         
         for label in labels:
-            if "Total" in label.cget("text") or "Balance Neto" in label.cget("text"):
-                label.config(text=label.cget("text").split(":")[0] + ": $0.00", foreground="black")
-            else:
-                label.config(text=label.cget("text").split(":")[0] + ": $0.00")
+            # Extract the part of the text before the colon to keep the label name
+            base_text = label.cget("text").split(":")[0]
+            label.config(text=f"{base_text}: $0.00", foreground="black" if not ("Neto" in base_text) else ("darkgreen" if 0 >=0 else "darkred") )
+            if "Balance Neto" in base_text : # Ensure default color for neto is green for 0
+                 label.config(foreground="darkgreen")
 
     def refresh_data(self):
         """Refrescar los datos del módulo"""

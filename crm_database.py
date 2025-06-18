@@ -380,8 +380,13 @@ def create_tables():
                     cursor.execute("ALTER TABLE honorarios ADD COLUMN dia_vencimiento_abono INTEGER")
                     print("Column 'dia_vencimiento_abono' added to 'honorarios' table.")
 
-            except sqlite3.Error as e_alter:
-                print(f"Error when trying to ALTER TABLE honorarios or check columns: {e_alter}")
+                # Ensure 'abono' is NOT added by any ALTER TABLE logic here.
+                if 'abono' in columns: # If the erroneous subtask added it, acknowledge and ignore.
+                    print("Warning: Column 'abono' exists in 'honorarios' table but is no longer used by the application. Manual DB check/cleanup might be considered for older DBs if this column was erroneously added previously.")
+                    pass # Python code will ignore this column if it exists.
+
+            except sqlite3.Error as e_alter_honorarios: # Renamed variable for clarity
+                print(f"Error when trying to ALTER TABLE honorarios: {e_alter_honorarios}")
 
             # Add ALTER TABLE logic for gastos (moneda)
             try:
