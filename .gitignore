@@ -1,0 +1,81 @@
+# Entornos virtuales de Python
+.venv/
+venv/
+ENV/
+env/
+virtualenv/
+*/activate_this.py
+*/pyvenv.cfg
+*/include/
+*/lib/
+*/lib64/
+*/Scripts/
+*/bin/
+
+# Archivos compilados de Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.egg-info/
+dist/
+build/
+
+# Bases de datos SQLite (si decides no versionar el archivo .db principal)
+# Si quieres versionar una BD de ejemplo, puedes quitar esta línea o ser más específico.
+# Por ahora, lo dejaremos para que no subas tu crm_legal.db de trabajo.
+# Si el agente creó backups de BD con un patrón específico, podrías añadirlos:
+backup_crm_legal.db_*
+*.db
+crm_legal.db 
+crm-legal-firebase-adminsdk-fbsvc-445aec7405.json
+backup_crm_legal.db_20250609_171426
+
+        
+# Generalmente, las bases de datos activas no se suben, solo quizás un esquema o datos de ejemplo.
+
+# Archivos de configuración específicos del IDE/editor
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Archivos de sistema operativo
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Archivos de PyInstaller (excepto el .spec si quieres versionarlo)
+# *.spec # Comenta esta línea si quieres versionar tu archivo .spec
+# dist/ # Ya cubierto arriba
+# build/ # Ya cubierto arriba
+
+# Archivos de entorno (MUY IMPORTANTE para claves API, etc.)
+.env
+.env.*
+!.env.example # A menudo se incluye un .env.example con variables vacías como plantilla
+
+# Logs
+*.log
+logs/
+
+# Archivos temporales de testing
+coverage.xml
+.coverage
+pytest_cache/
+.pytest_cache/
+nosetests.xml
+output.xml
+*.cover
+*.html # Si generas reportes de coverage en HTML
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Otros archivos específicos de tu proyecto que no quieras subir
+# Por ejemplo, si el agente generó muchos backups de código que no quieres en el repo:
+*_backup.py
+*_backup_*.py
+parche_*.py
+dist_*/
+# etc. (añade patrones específicos para los archivos que generó el agente y que no sean la versión final que quieres versionar en esta rama)
