@@ -256,6 +256,9 @@ def create_tables():
                     fecha TEXT NOT NULL,
                     estado TEXT NOT NULL DEFAULT 'Pendiente',  -- Pendiente, Cobrado, Cancelado
                     tipo TEXT NOT NULL DEFAULT 'Consulta',     -- Consulta, Representación, Gestión, Otro
+                    moneda TEXT,
+                    es_abono_mensual INTEGER DEFAULT 0,
+                    dia_vencimiento_abono INTEGER,
                     fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     notas TEXT,
                     FOREIGN KEY (caso_id) REFERENCES casos(id) ON DELETE CASCADE
@@ -358,6 +361,27 @@ def create_tables():
             except sqlite3.OperationalError:
                 # La columna ya existe, no hacemos nada.
                 pass
+
+            # Add ALTER TABLE logic for honorarios (moneda, es_abono_mensual, dia_vencimiento_abono)
+            try:
+                cursor.execute("PRAGMA table_info(honorarios)")
+                columns = [info[1] for info in cursor.fetchall()]
+
+                if 'moneda' not in columns:
+                    cursor.execute("ALTER TABLE honorarios ADD COLUMN moneda TEXT")
+                    print("Column 'moneda' added to 'honorarios' table.")
+
+                if 'es_abono_mensual' not in columns:
+                    cursor.execute("ALTER TABLE honorarios ADD COLUMN es_abono_mensual INTEGER DEFAULT 0")
+                    print("Column 'es_abono_mensual' added to 'honorarios' table.")
+
+                if 'dia_vencimiento_abono' not in columns:
+                    cursor.execute("ALTER TABLE honorarios ADD COLUMN dia_vencimiento_abono INTEGER")
+                    print("Column 'dia_vencimiento_abono' added to 'honorarios' table.")
+
+            except sqlite3.Error as e_alter:
+                print(f"Error when trying to ALTER TABLE honorarios or check columns: {e_alter}")
+
             conn.commit()
             print("Tablas verificadas/creadas con éxito (partes_intervinientes actualizada).")
         except sqlite3.Error as e:
@@ -1589,7 +1613,7 @@ def get_etiquetas_de_caso(caso_id):
 # --- NUEVAS FUNCIONES CRUD PARA SISTEMA FINANCIERO ---
 
 # === HONORARIOS ===
-def add_honorario(caso_id, descripcion, monto, fecha, estado="Pendiente", tipo="Consulta", notas=""):
+def add_honorario(caso_id, descripcion, monto, fecha, moneda, estado="Pendiente", tipo="Consulta", notas="", es_abono_mensual=0, dia_vencimiento_abono=None):
     """Agregar un nuevo honorario"""
     conn = connect_db()
     success = False
@@ -1597,9 +1621,9 @@ def add_honorario(caso_id, descripcion, monto, fecha, estado="Pendiente", tipo="
         try:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO honorarios (caso_id, descripcion, monto, fecha, estado, tipo, notas, fecha_creacion)
-                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-            ''', (caso_id, descripcion, monto, fecha, estado, tipo, notas))
+                INSERT INTO honorarios (caso_id, descripcion, monto, fecha, estado, tipo, notas, moneda, es_abono_mensual, dia_vencimiento_abono, fecha_creacion)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ''', (caso_id, descripcion, monto, fecha, estado, tipo, notas, moneda, es_abono_mensual, dia_vencimiento_abono))
             conn.commit()
             success = True
         except sqlite3.Error as e:
@@ -1617,7 +1641,8 @@ def get_honorarios_by_case(caso_id):
         try:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT * FROM honorarios 
+                SELECT id, caso_id, descripcion, monto, fecha, moneda, estado, tipo, notas, es_abono_mensual, dia_vencimiento_abono, fecha_creacion
+                FROM honorarios
                 WHERE caso_id = ? 
                 ORDER BY fecha DESC
             ''', (caso_id,))
@@ -1629,7 +1654,7 @@ def get_honorarios_by_case(caso_id):
             close_db(conn)
     return honorarios
 
-def update_honorario(honorario_id, caso_id, descripcion, monto, fecha, estado, tipo, notas=""):
+def update_honorario(honorario_id, caso_id, descripcion, monto, fecha, moneda, estado, tipo, notas="", es_abono_mensual=0, dia_vencimiento_abono=None):
     """Actualizar un honorario existente"""
     conn = connect_db()
     success = False
@@ -1638,9 +1663,9 @@ def update_honorario(honorario_id, caso_id, descripcion, monto, fecha, estado, t
             cursor = conn.cursor()
             cursor.execute('''
                 UPDATE honorarios 
-                SET caso_id = ?, descripcion = ?, monto = ?, fecha = ?, estado = ?, tipo = ?, notas = ?
+                SET caso_id = ?, descripcion = ?, monto = ?, fecha = ?, moneda = ?, estado = ?, tipo = ?, notas = ?, es_abono_mensual = ?, dia_vencimiento_abono = ?
                 WHERE id = ?
-            ''', (caso_id, descripcion, monto, fecha, estado, tipo, notas, honorario_id))
+            ''', (caso_id, descripcion, monto, fecha, moneda, estado, tipo, notas, es_abono_mensual, dia_vencimiento_abono, honorario_id))
             conn.commit()
             success = True
         except sqlite3.Error as e:
@@ -1666,6 +1691,27 @@ def delete_honorario(honorario_id):
         finally:
             close_db(conn)
     return success
+
+def get_honorario_by_id(honorario_id):
+    """Obtener un honorario específico por su ID."""
+    conn = connect_db()
+    honorario_data = None
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, caso_id, descripcion, monto, fecha, moneda, estado, tipo, notas, es_abono_mensual, dia_vencimiento_abono, fecha_creacion
+                FROM honorarios
+                WHERE id = ?
+            ''', (honorario_id,))
+            row = cursor.fetchone()
+            if row:
+                honorario_data = dict(row)
+        except sqlite3.Error as e:
+            print(f"Error al obtener honorario por ID {honorario_id}: {e}")
+        finally:
+            close_db(conn)
+    return honorario_data
 
 # === GASTOS ===
 def add_gasto(caso_id, descripcion, monto, fecha, categoria="General", reembolsable=True, notas="", comprobante_path=""):

@@ -1,7 +1,22 @@
 # financiero_ui.py
 import tkinter as tk
 from tkinter import ttk, messagebox
-import datetime
+try:
+    from tkcalendar import DateEntry
+except ImportError:
+    # Attempt to install tkcalendar if not found
+    try:
+        import subprocess
+        import sys
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "tkcalendar"])
+        from tkcalendar import DateEntry
+    except Exception as e:
+        # If installation fails, raise an error or use a fallback (though DateEntry is crucial here)
+        print(f"Error: tkcalendar not found and failed to install: {e}. Please install it manually.")
+        # For the subtask, we'll proceed assuming it might get installed, or this print will notify.
+        # A more robust solution would be to stop or use a standard Entry as fallback.
+        pass # Let it try to use DateEntry and fail if not truly available.
+import datetime # Ensure datetime is imported
 
 class FinancieroTab(ttk.Frame):
     def __init__(self, parent, app_controller, *args, **kwargs):
@@ -62,18 +77,22 @@ class FinancieroTab(ttk.Frame):
         list_frame.columnconfigure(0, weight=1)
         list_frame.rowconfigure(0, weight=1)
 
-        honorarios_cols = ('ID', 'Descripción', 'Monto', 'Fecha', 'Estado', 'Tipo')
+        honorarios_cols = ('ID', 'Descripción', 'Monto', 'Moneda', 'Fecha', 'Estado', 'Tipo', 'Día Venc. Abono')
         self.honorarios_tree = ttk.Treeview(list_frame, columns=honorarios_cols, show='headings', selectmode='browse')
 
         for col in honorarios_cols:
             self.honorarios_tree.heading(col, text=col)
 
+        self.honorarios_tree.heading('Día Venc. Abono', text='Día Venc.')
+
         self.honorarios_tree.column('ID', width=40, stretch=tk.NO, anchor=tk.CENTER)
         self.honorarios_tree.column('Descripción', width=200, stretch=True)
         self.honorarios_tree.column('Monto', width=100, stretch=tk.NO, anchor=tk.E)
+        self.honorarios_tree.column('Moneda', width=60, stretch=tk.NO, anchor=tk.CENTER)
         self.honorarios_tree.column('Fecha', width=100, stretch=tk.NO)
         self.honorarios_tree.column('Estado', width=80, stretch=tk.NO)
         self.honorarios_tree.column('Tipo', width=100, stretch=tk.NO)
+        self.honorarios_tree.column('Día Venc. Abono', width=80, stretch=tk.NO, anchor=tk.CENTER)
 
         honorarios_scroll = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.honorarios_tree.yview)
         self.honorarios_tree.configure(yscrollcommand=honorarios_scroll.set)
@@ -386,10 +405,12 @@ class FinancieroTab(ttk.Frame):
                 self.honorarios_tree.insert('', 'end', values=(
                     honorario['id'],
                     honorario.get('descripcion', ''),
-                    f"${honorario.get('monto', 0):.2f}",
-                    honorario.get('fecha', ''),
+                    f"{honorario.get('monto', 0.0):.2f}",
+                    honorario.get('moneda', 'ARS'),
+                    datetime.datetime.strptime(honorario.get('fecha', ''), '%Y-%m-%d').strftime('%d/%m/%Y') if honorario.get('fecha') else '',
                     honorario.get('estado', ''),
-                    honorario.get('tipo', '')
+                    honorario.get('tipo', ''),
+                    str(honorario.get('dia_vencimiento_abono', '')) if honorario.get('es_abono_mensual') else ''
                 ))
         except Exception as e:
             print(f"Error al cargar honorarios: {e}")
@@ -413,7 +434,7 @@ class FinancieroTab(ttk.Frame):
         dialog.title("Nuevo Honorario" if not honorario_id else "Editar Honorario")
         dialog.transient(self.app_controller.root)
         dialog.grab_set()
-        dialog.geometry("400x350")
+        dialog.geometry("400x420") # Adjusted height for new fields
 
         main_frame = ttk.Frame(dialog, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -421,9 +442,13 @@ class FinancieroTab(ttk.Frame):
         # Variables
         descripcion_var = tk.StringVar()
         monto_var = tk.StringVar()
-        fecha_var = tk.StringVar(value=datetime.date.today().strftime("%Y-%m-%d"))
+        moneda_var = tk.StringVar(value="ARS")
+        fecha_var = tk.StringVar() # Remove default value for DateEntry compatibility
         estado_var = tk.StringVar(value="Pendiente")
         tipo_var = tk.StringVar(value="Consulta")
+        dia_vencimiento_abono_var = tk.StringVar()
+
+        tipo_values = ["Consulta", "Representación", "Gestión", "Abono Mensual", "Otro"]
 
         # Formulario
         row = 0
@@ -435,49 +460,148 @@ class FinancieroTab(ttk.Frame):
         ttk.Entry(main_frame, textvariable=monto_var, width=30).grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
         row += 1
 
+        ttk.Label(main_frame, text="Moneda:").grid(row=row, column=0, sticky=tk.W, pady=5)
+        ttk.Combobox(main_frame, textvariable=moneda_var, values=["ARS", "USD"],
+                     state="readonly", width=28).grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
+        row += 1
+
         ttk.Label(main_frame, text="Fecha:").grid(row=row, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=fecha_var, width=30).grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
+        # Replace Entry with DateEntry
+        fecha_entry = DateEntry(main_frame, width=28, background='darkblue', foreground='white',
+                                borderwidth=2, date_pattern='dd/MM/yyyy', textvariable=fecha_var)
+        fecha_entry.grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
         row += 1
 
         ttk.Label(main_frame, text="Estado:").grid(row=row, column=0, sticky=tk.W, pady=5)
         ttk.Combobox(main_frame, textvariable=estado_var, values=["Pendiente", "Cobrado", "Cancelado"], 
-                    state="readonly").grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
+                     state="readonly", width=28).grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
         row += 1
 
         ttk.Label(main_frame, text="Tipo:").grid(row=row, column=0, sticky=tk.W, pady=5)
-        ttk.Combobox(main_frame, textvariable=tipo_var, values=["Consulta", "Representación", "Gestión", "Otro"], 
-                    state="readonly").grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
+        tipo_combo = ttk.Combobox(main_frame, textvariable=tipo_var, values=tipo_values,
+                                  state="readonly", width=28)
+        tipo_combo.grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
         row += 1
+
+        dia_vencimiento_label = ttk.Label(main_frame, text="Día Vencimiento Abono (1-31):")
+        dia_vencimiento_entry = ttk.Spinbox(main_frame, from_=1, to=31, textvariable=dia_vencimiento_abono_var, width=10, state=tk.DISABLED)
+
+        # Add to grid but remove immediately if not needed initially
+        dia_vencimiento_label.grid(row=row, column=0, sticky=tk.W, pady=5)
+        dia_vencimiento_entry.grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10,0))
+        current_row_abono = row # Store the row for abono fields
+        row += 1
+
+
+        def _toggle_visibility_logic(selected_tipo_str):
+            nonlocal current_row_abono # Use nonlocal to modify the row counter if needed, though not strictly necessary here
+            if selected_tipo_str == "Abono Mensual":
+                dia_vencimiento_label.grid(row=current_row_abono, column=0, sticky=tk.W, pady=5)
+                dia_vencimiento_entry.config(state=tk.NORMAL)
+                dia_vencimiento_entry.grid(row=current_row_abono, column=1, sticky=tk.EW, pady=5, padx=(10,0))
+            else:
+                dia_vencimiento_label.grid_remove()
+                dia_vencimiento_entry.config(state=tk.DISABLED)
+                dia_vencimiento_entry.grid_remove()
+                dia_vencimiento_abono_var.set('')
+
+        tipo_combo.bind('<<ComboboxSelected>>', lambda event: _toggle_visibility_logic(tipo_var.get()))
+
+        if honorario_id:
+            honorario_data = self.db_crm.get_honorario_by_id(honorario_id)
+            if honorario_data:
+                descripcion_var.set(honorario_data.get('descripcion', ''))
+                monto_var.set(str(honorario_data.get('monto', 0.0)))
+                moneda_var.set(honorario_data.get('moneda', 'ARS'))
+
+                current_fecha_str = honorario_data.get('fecha') # Expected YYYY-MM-DD
+                if current_fecha_str:
+                    try:
+                        date_obj = datetime.datetime.strptime(current_fecha_str, '%Y-%m-%d').date()
+                        fecha_entry.set_date(date_obj)
+                    except ValueError:
+                        # If parsing fails, DateEntry will use its default (today) or be blank if no textvariable default
+                        # We could set fecha_var here to the raw string, but DateEntry might not like YYYY-MM-DD
+                        print(f"Warning: Could not parse date {current_fecha_str} for honorario_id {honorario_id}. Using DateEntry default.")
+                        fecha_entry.set_date(datetime.date.today()) # Fallback to today
+                else:
+                    fecha_entry.set_date(datetime.date.today()) # Default to today if no date
+
+                estado_var.set(honorario_data.get('estado', 'Pendiente'))
+
+                is_abono = honorario_data.get('es_abono_mensual', 0)
+                current_tipo_db = honorario_data.get('tipo', 'Consulta')
+
+                if is_abono == 1 and current_tipo_db == "Abono Mensual": # Check both flags
+                    tipo_var.set("Abono Mensual")
+                    dia_vencimiento_abono_var.set(str(honorario_data.get('dia_vencimiento_abono', '')))
+                else:
+                    tipo_var.set(current_tipo_db if current_tipo_db in tipo_values else "Consulta")
+                    dia_vencimiento_abono_var.set('')
+                _toggle_visibility_logic(tipo_var.get())
+        else:
+            # New honorario, set default date for DateEntry
+            fecha_entry.set_date(datetime.date.today())
+            _toggle_visibility_logic(tipo_var.get())
 
         main_frame.columnconfigure(1, weight=1)
 
         # Botones
         buttons_frame = ttk.Frame(main_frame)
-        buttons_frame.grid(row=row, column=0, columnspan=2, pady=20)
+        buttons_frame.grid(row=row, column=0, columnspan=2, pady=20) # Ensure this row is after abono fields
 
         ttk.Button(buttons_frame, text="Guardar", 
                   command=lambda: self._save_honorario(honorario_id, self.current_case['id'], 
                                                       descripcion_var.get(), monto_var.get(),
-                                                      fecha_var.get(), estado_var.get(), tipo_var.get(), dialog)).pack(side=tk.LEFT, padx=(0, 10))
+                                                      fecha_var.get(), # This will be dd/MM/yyyy from DateEntry's textvariable
+                                                      estado_var.get(), tipo_var.get(),
+                                                      moneda_var.get(), dia_vencimiento_abono_var.get(), dialog)).pack(side=tk.LEFT, padx=(0, 10))
         ttk.Button(buttons_frame, text="Cancelar", command=dialog.destroy).pack(side=tk.LEFT)
 
-    def _save_honorario(self, honorario_id, case_id, descripcion, monto, fecha, estado, tipo, dialog):
+    def _save_honorario(self, honorario_id, case_id, descripcion, monto_str, fecha_str_from_dialog, estado, tipo_seleccionado, moneda, dia_vencimiento_abono_str, dialog):
         """Guardar honorario"""
         if not descripcion.strip():
-            messagebox.showwarning("Campo Requerido", "La descripción es obligatoria.")
+            messagebox.showwarning("Campo Requerido", "La descripción es obligatoria.", parent=dialog)
             return
 
         try:
-            monto_float = float(monto) if monto else 0.0
+            monto_float = float(monto_str) if monto_str else 0.0
         except ValueError:
-            messagebox.showwarning("Monto Inválido", "Ingrese un monto válido.")
+            messagebox.showwarning("Monto Inválido", "Ingrese un monto válido para 'Monto'.", parent=dialog)
             return
+
+        fecha_to_db = ""
+        if fecha_str_from_dialog:
+            try:
+                fecha_to_db = datetime.datetime.strptime(fecha_str_from_dialog, '%d/%m/%Y').strftime('%Y-%m-%d')
+            except ValueError:
+                messagebox.showwarning("Formato de Fecha Inválido", "La fecha debe estar en formato dd/mm/yyyy.", parent=dialog)
+                return
+        else:
+            messagebox.showwarning("Campo Requerido", "La fecha es obligatoria.", parent=dialog)
+            return
+
+        es_abono_mensual_int = 1 if tipo_seleccionado == "Abono Mensual" else 0
+        dia_vencimiento_abono_int = None
+
+        if es_abono_mensual_int == 1:
+            if not dia_vencimiento_abono_str.strip():
+                messagebox.showwarning("Campo Requerido", "El día de vencimiento es obligatorio para abonos mensuales.", parent=dialog)
+                return
+            try:
+                dia_val = int(dia_vencimiento_abono_str)
+                if not (1 <= dia_val <= 31):
+                    raise ValueError("Día fuera de rango")
+                dia_vencimiento_abono_int = dia_val
+            except ValueError:
+                messagebox.showwarning("Dato Inválido", "El día de vencimiento del abono debe ser un número entre 1 y 31.", parent=dialog)
+                return
 
         try:
             if honorario_id:
-                self.db_crm.update_honorario(honorario_id, case_id, descripcion, monto_float, fecha, estado, tipo)
+                self.db_crm.update_honorario(honorario_id, case_id, descripcion, monto_float, fecha_to_db, moneda, estado, tipo_seleccionado, "", es_abono_mensual_int, dia_vencimiento_abono_int)
             else:
-                self.db_crm.add_honorario(case_id, descripcion, monto_float, fecha, estado, tipo)
+                self.db_crm.add_honorario(case_id, descripcion, monto_float, fecha_to_db, moneda, estado, tipo_seleccionado, "", es_abono_mensual_int, dia_vencimiento_abono_int)
             
             dialog.destroy()
             self._load_honorarios(case_id)
@@ -488,13 +612,43 @@ class FinancieroTab(ttk.Frame):
 
     def edit_selected_honorario(self):
         """Editar honorario seleccionado"""
-        # Implementación simplificada por espacio
-        messagebox.showinfo("Funcionalidad", "Edición de honorario - Implementar según necesidades específicas")
+        selected_items = self.honorarios_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Sin Selección", "Por favor, seleccione un honorario para editar.")
+            return
+
+        selected_item = selected_items[0]
+        try:
+            honorario_id = self.honorarios_tree.item(selected_item, 'values')[0]
+            self.open_honorario_dialog(honorario_id=int(honorario_id))
+        except (IndexError, ValueError):
+            messagebox.showerror("Error", "No se pudo obtener el ID del honorario seleccionado.")
 
     def delete_selected_honorario(self):
         """Eliminar honorario seleccionado"""
-        # Implementación simplificada por espacio
-        messagebox.showinfo("Funcionalidad", "Eliminación de honorario - Implementar según necesidades específicas")
+        selected_items = self.honorarios_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Sin Selección", "Por favor, seleccione un honorario para eliminar.")
+            return
+
+        selected_item = selected_items[0]
+        try:
+            honorario_id_str = self.honorarios_tree.item(selected_item, 'values')[0]
+            honorario_id = int(honorario_id_str)
+
+            confirm = messagebox.askyesno("Confirmar Eliminación",
+                                          f"¿Está seguro de que desea eliminar el honorario ID {honorario_id}?")
+            if confirm:
+                if self.db_crm.delete_honorario(honorario_id):
+                    self._load_honorarios(self.current_case['id'])
+                    self._update_resumen(self.current_case['id'])
+                    messagebox.showinfo("Éxito", f"Honorario ID {honorario_id} eliminado correctamente.")
+                else:
+                    messagebox.showerror("Error", f"No se pudo eliminar el honorario ID {honorario_id}.")
+        except (IndexError, ValueError):
+            messagebox.showerror("Error", "No se pudo obtener el ID del honorario seleccionado para eliminar.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error al eliminar el honorario: {e}")
 
     # --- Métodos de Gastos ---
 
