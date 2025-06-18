@@ -275,14 +275,27 @@ class FinancieroTab(ttk.Frame):
         hon_resumen_frame = ttk.LabelFrame(resumen_panel, text="Resumen de Honorarios", padding="10")
         hon_resumen_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 5), pady=(0, 5))
 
-        self.hon_total_label = ttk.Label(hon_resumen_frame, text="Total: $0.00", font=('', 12, 'bold'))
-        self.hon_total_label.pack(anchor=tk.W)
+        # Comment out or remove the old labels:
+        # self.hon_total_label = ttk.Label(hon_resumen_frame, text="Total: $0.00", font=('', 12, 'bold'))
+        # self.hon_total_label.pack(anchor=tk.W)
+        # self.hon_cobrado_label = ttk.Label(hon_resumen_frame, text="Cobrado: $0.00")
+        # self.hon_cobrado_label.pack(anchor=tk.W)
+        # self.hon_pendiente_label = ttk.Label(hon_resumen_frame, text="Pendiente: $0.00")
+        # self.hon_pendiente_label.pack(anchor=tk.W)
 
-        self.hon_cobrado_label = ttk.Label(hon_resumen_frame, text="Cobrado: $0.00")
-        self.hon_cobrado_label.pack(anchor=tk.W)
+        self.hon_total_ars_label = ttk.Label(hon_resumen_frame, text="Total ARS: $0.00", font=('', 11, 'bold')) # Slightly smaller font
+        self.hon_total_ars_label.pack(anchor=tk.W)
+        self.hon_cobrado_ars_label = ttk.Label(hon_resumen_frame, text="Cobrado ARS: $0.00")
+        self.hon_cobrado_ars_label.pack(anchor=tk.W)
+        self.hon_pendiente_ars_label = ttk.Label(hon_resumen_frame, text="Pendiente ARS: $0.00")
+        self.hon_pendiente_ars_label.pack(anchor=tk.W, pady=(0,5)) # Add some padding below ARS block
 
-        self.hon_pendiente_label = ttk.Label(hon_resumen_frame, text="Pendiente: $0.00")
-        self.hon_pendiente_label.pack(anchor=tk.W)
+        self.hon_total_usd_label = ttk.Label(hon_resumen_frame, text="Total USD: $0.00", font=('', 11, 'bold'))
+        self.hon_total_usd_label.pack(anchor=tk.W)
+        self.hon_cobrado_usd_label = ttk.Label(hon_resumen_frame, text="Cobrado USD: $0.00")
+        self.hon_cobrado_usd_label.pack(anchor=tk.W)
+        self.hon_pendiente_usd_label = ttk.Label(hon_resumen_frame, text="Pendiente USD: $0.00")
+        self.hon_pendiente_usd_label.pack(anchor=tk.W)
 
         # Resumen de Gastos
         gas_resumen_frame = ttk.LabelFrame(resumen_panel, text="Resumen de Gastos", padding="10")
@@ -744,11 +757,32 @@ class FinancieroTab(ttk.Frame):
     def _update_resumen(self, case_id):
         """Actualizar resumen financiero"""
         try:
+            # Initialize Currency-Specific Accumulators for Fees
+            hon_total_ars = 0.0
+            hon_cobrado_ars = 0.0
+            hon_pendiente_ars = 0.0
+            hon_total_usd = 0.0
+            hon_cobrado_usd = 0.0
+            hon_pendiente_usd = 0.0
+
             # Calcular totales de honorarios
             honorarios = self.db_crm.get_honorarios_by_case(case_id)
-            hon_total = sum(h.get('monto', 0) for h in honorarios)
-            hon_cobrado = sum(h.get('monto', 0) for h in honorarios if h.get('estado') == 'Cobrado')
-            hon_pendiente = hon_total - hon_cobrado
+            for h in honorarios:
+                monto = h.get('monto', 0.0)
+                moneda = h.get('moneda', 'ARS') # Default to ARS if moneda is not set
+
+                if moneda == 'ARS':
+                    hon_total_ars += monto
+                    if h.get('estado') == 'Cobrado':
+                        hon_cobrado_ars += monto
+                elif moneda == 'USD':
+                    hon_total_usd += monto
+                    if h.get('estado') == 'Cobrado':
+                        hon_cobrado_usd += monto
+                # Add more currencies here if needed in the future
+
+            hon_pendiente_ars = hon_total_ars - hon_cobrado_ars
+            hon_pendiente_usd = hon_total_usd - hon_cobrado_usd
 
             # Calcular totales de gastos
             gastos = self.db_crm.get_gastos_by_case(case_id)
@@ -763,9 +797,13 @@ class FinancieroTab(ttk.Frame):
             fac_pendiente = fac_total - fac_pagado
 
             # Actualizar labels de resumen
-            self.hon_total_label.config(text=f"Total: ${hon_total:.2f}")
-            self.hon_cobrado_label.config(text=f"Cobrado: ${hon_cobrado:.2f}")
-            self.hon_pendiente_label.config(text=f"Pendiente: ${hon_pendiente:.2f}")
+            self.hon_total_ars_label.config(text=f"Total ARS: ${hon_total_ars:.2f}")
+            self.hon_cobrado_ars_label.config(text=f"Cobrado ARS: ${hon_cobrado_ars:.2f}")
+            self.hon_pendiente_ars_label.config(text=f"Pendiente ARS: ${hon_pendiente_ars:.2f}")
+
+            self.hon_total_usd_label.config(text=f"Total USD: ${hon_total_usd:.2f}")
+            self.hon_cobrado_usd_label.config(text=f"Cobrado USD: ${hon_cobrado_usd:.2f}")
+            self.hon_pendiente_usd_label.config(text=f"Pendiente USD: ${hon_pendiente_usd:.2f}")
 
             self.gas_total_label.config(text=f"Total: ${gas_total:.2f}")
             self.gas_reembolsable_label.config(text=f"Reembolsable: ${gas_reembolsable:.2f}")
@@ -776,7 +814,8 @@ class FinancieroTab(ttk.Frame):
             self.fac_pendiente_label.config(text=f"Pendiente: ${fac_pendiente:.2f}")
 
             # Balance general
-            ingresos = hon_cobrado + fac_pagado
+            ingresos_combinados_honorarios = hon_cobrado_ars + hon_cobrado_usd # This is a mixed currency sum for now
+            ingresos = ingresos_combinados_honorarios + fac_pagado # fac_pagado might also have mixed currencies eventually
             gastos_totales = gas_no_reembolsable  # Solo gastos no reembolsables afectan el balance
             balance_neto = ingresos - gastos_totales
 
@@ -793,7 +832,8 @@ class FinancieroTab(ttk.Frame):
     def _clear_resumen(self):
         """Limpiar resumen financiero"""
         labels = [
-            self.hon_total_label, self.hon_cobrado_label, self.hon_pendiente_label,
+            self.hon_total_ars_label, self.hon_cobrado_ars_label, self.hon_pendiente_ars_label,
+            self.hon_total_usd_label, self.hon_cobrado_usd_label, self.hon_pendiente_usd_label,
             self.gas_total_label, self.gas_reembolsable_label, self.gas_no_reembolsable_label,
             self.fac_total_label, self.fac_pagado_label, self.fac_pendiente_label,
             self.balance_ingresos_label, self.balance_gastos_label, self.balance_neto_label
