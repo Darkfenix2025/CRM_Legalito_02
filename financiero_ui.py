@@ -24,6 +24,11 @@ class FinancieroTab(ttk.Frame):
         self.app_controller = app_controller
         self.db_crm = self.app_controller.db_crm
         self.current_case = None
+        self.categorias_gastos_comunes = [
+            "Bono CPACF", "Bono ley 8480", "Jus Anticipo", "Jus Arancelario",
+            "Tasa de Justicia", "Aportes a cargo de parte",
+            "Aportes a cargo del letrado", "IIBB", "IVA", "Otros"
+        ]
         self._create_widgets()
 
     def _create_widgets(self):
@@ -675,16 +680,26 @@ class FinancieroTab(ttk.Frame):
             gastos = self.db_crm.get_gastos_by_case(case_id)
             for gasto in gastos:
                 reembolsable = "Sí" if gasto.get('reembolsable') else "No"
+
+                fecha_db = gasto.get('fecha', '')
+                fecha_display = ''
+                if fecha_db:
+                    try:
+                        fecha_display = datetime.datetime.strptime(fecha_db, '%Y-%m-%d').strftime('%d/%m/%Y')
+                    except ValueError:
+                        fecha_display = fecha_db # Show raw if format is wrong
+
                 self.gastos_tree.insert('', 'end', values=(
                     gasto['id'],
                     gasto.get('descripcion', ''),
-                    f"${gasto.get('monto', 0):.2f}",
-                    gasto.get('fecha', ''),
+                    f"${gasto.get('monto', 0.0):.2f}", # Ensure float for formatting
+                    fecha_display,
                     gasto.get('categoria', ''),
                     reembolsable
                 ))
         except Exception as e:
             print(f"Error al cargar gastos: {e}")
+            messagebox.showerror("Error de Carga", f"No se pudieron cargar los gastos: {e}", parent=self)
 
     def on_gasto_select(self, event):
         """Manejar selección de gasto"""
@@ -697,16 +712,230 @@ class FinancieroTab(ttk.Frame):
             self.delete_gasto_btn.config(state=tk.DISABLED)
 
     def open_gasto_dialog(self, gasto_id=None):
-        """Abrir diálogo de gasto - Implementación simplificada"""
-        messagebox.showinfo("Funcionalidad", "Diálogo de gastos - Implementar según patrón de honorarios")
+        if not self.current_case:
+            messagebox.showwarning("Sin Caso", "Por favor, seleccione un caso primero.")
+            return
+
+        dialog = tk.Toplevel(self.app_controller.root)
+        dialog.title("Nuevo Gasto" if not gasto_id else "Editar Gasto")
+        dialog.transient(self.app_controller.root)
+        dialog.grab_set()
+        dialog.geometry("450x400") # Adjusted size
+
+        main_frame = ttk.Frame(dialog, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        main_frame.columnconfigure(1, weight=1)
+
+        # Variables
+        descripcion_var = tk.StringVar()
+        monto_var = tk.StringVar()
+        fecha_var = tk.StringVar()
+        categoria_combo_var = tk.StringVar()
+        categoria_especificar_var = tk.StringVar()
+        reembolsable_var = tk.StringVar(value="Sí")
+
+        gasto_data = None # To store fetched data in edit mode for notas/comprobante
+
+        # Widgets
+        row = 0
+        ttk.Label(main_frame, text="Descripción:").grid(row=row, column=0, sticky=tk.W, pady=5)
+        ttk.Entry(main_frame, textvariable=descripcion_var, width=40).grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10,0))
+        row += 1
+
+        ttk.Label(main_frame, text="Monto:").grid(row=row, column=0, sticky=tk.W, pady=5)
+        ttk.Entry(main_frame, textvariable=monto_var, width=40).grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10,0))
+        row += 1
+
+        ttk.Label(main_frame, text="Fecha:").grid(row=row, column=0, sticky=tk.W, pady=5)
+        fecha_entry = DateEntry(main_frame, width=38, background='darkblue', foreground='white',
+                                borderwidth=2, date_pattern='dd/MM/yyyy', textvariable=fecha_var)
+        fecha_entry.grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10,0))
+        row += 1
+
+        ttk.Label(main_frame, text="Categoría:").grid(row=row, column=0, sticky=tk.W, pady=5)
+        categoria_combo = ttk.Combobox(main_frame, textvariable=categoria_combo_var,
+                                       values=self.categorias_gastos_comunes, state="readonly", width=38)
+        categoria_combo.grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10,0))
+        row += 1
+
+        categoria_especificar_label = ttk.Label(main_frame, text="Especificar Categoría:")
+        categoria_especificar_entry = ttk.Entry(main_frame, textvariable=categoria_especificar_var, width=40, state=tk.DISABLED)
+        # Grid for these will be managed by _toggle_categoria_especificar
+
+        current_categoria_row = row # Save for toggling
+
+        def _toggle_categoria_especificar(event=None):
+            if categoria_combo_var.get() == "Otros":
+                categoria_especificar_label.grid(row=current_categoria_row, column=0, sticky=tk.W, pady=5)
+                categoria_especificar_entry.config(state=tk.NORMAL)
+                categoria_especificar_entry.grid(row=current_categoria_row, column=1, sticky=tk.EW, pady=5, padx=(10,0))
+            else:
+                categoria_especificar_label.grid_remove()
+                categoria_especificar_entry.config(state=tk.DISABLED)
+                categoria_especificar_entry.grid_remove()
+                categoria_especificar_var.set("")
+
+        categoria_combo.bind('<<ComboboxSelected>>', _toggle_categoria_especificar)
+        row +=1 # Increment row for next elements
+
+        ttk.Label(main_frame, text="Reembolsable:").grid(row=row, column=0, sticky=tk.W, pady=5)
+        ttk.Combobox(main_frame, textvariable=reembolsable_var, values=["Sí", "No"],
+                     state="readonly", width=38).grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10,0))
+        row += 1
+
+        if gasto_id:
+            gasto_data = self.db_crm.get_gasto_by_id(gasto_id)
+            if gasto_data:
+                descripcion_var.set(gasto_data.get('descripcion', ''))
+                monto_var.set(str(gasto_data.get('monto', 0.0)))
+
+                fecha_db = gasto_data.get('fecha')
+                if fecha_db:
+                    try:
+                        fecha_obj = datetime.datetime.strptime(fecha_db, '%Y-%m-%d').date()
+                        fecha_entry.set_date(fecha_obj)
+                    except ValueError:
+                        fecha_var.set(fecha_db) # Fallback
+                else:
+                    fecha_entry.set_date(datetime.date.today())
+
+                reembolsable_var.set("Sí" if gasto_data.get('reembolsable', 1) else "No")
+
+                saved_categoria = gasto_data.get('categoria', '')
+                if saved_categoria in self.categorias_gastos_comunes and saved_categoria != "Otros":
+                    categoria_combo_var.set(saved_categoria)
+                elif saved_categoria: # Handles custom categories or old "Otros"
+                    categoria_combo_var.set("Otros")
+                    categoria_especificar_var.set(saved_categoria)
+                else: # No category or empty
+                    categoria_combo_var.set('') # Or a default if you prefer
+
+                _toggle_categoria_especificar() # Update visibility based on loaded data
+            else: # Gasto ID provided but not found
+                messagebox.showerror("Error", f"No se encontró el gasto con ID {gasto_id}.", parent=dialog)
+                dialog.destroy()
+                return
+        else: # New gasto
+            fecha_entry.set_date(datetime.date.today())
+            _toggle_categoria_especificar() # Initial state for new
+
+        buttons_frame = ttk.Frame(main_frame)
+        buttons_frame.grid(row=row, column=0, columnspan=2, pady=20)
+
+        ttk.Button(buttons_frame, text="Guardar",
+                   command=lambda: self._save_gasto(
+                       gasto_id, self.current_case['id'], descripcion_var.get(),
+                       monto_var.get(), fecha_var.get(), categoria_combo_var.get(),
+                       categoria_especificar_var.get(), reembolsable_var.get(),
+                       gasto_data.get('notas', '') if gasto_data else "",  # Pass existing notes or empty
+                       gasto_data.get('comprobante_path', '') if gasto_data else "", # Pass existing path or empty
+                       dialog
+                   )).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(buttons_frame, text="Cancelar", command=dialog.destroy).pack(side=tk.LEFT)
+
+    def _save_gasto(self, gasto_id, case_id, descripcion, monto_str, fecha_str,
+                    categoria_selected, categoria_especificada, reembolsable_str,
+                    notas_val, comprobante_path_val, dialog_ref):
+        if not descripcion.strip():
+            messagebox.showwarning("Campo Requerido", "La descripción es obligatoria.", parent=dialog_ref)
+            return
+        try:
+            monto_float = float(monto_str) if monto_str else 0.0
+        except ValueError:
+            messagebox.showwarning("Monto Inválido", "Ingrese un monto válido.", parent=dialog_ref)
+            return
+
+        fecha_db_format = ""
+        if fecha_str:
+            try:
+                fecha_db_format = datetime.datetime.strptime(fecha_str, '%d/%m/%Y').strftime('%Y-%m-%d')
+            except ValueError:
+                messagebox.showwarning("Formato de Fecha Inválido", "La fecha debe estar en formato dd/mm/yyyy.", parent=dialog_ref)
+                return
+        else:
+            messagebox.showwarning("Campo Requerido", "La fecha es obligatoria.", parent=dialog_ref)
+            return
+
+        final_categoria = categoria_especificada.strip() if categoria_selected == "Otros" else categoria_selected
+        if categoria_selected == "Otros" and not final_categoria:
+            messagebox.showwarning("Campo Requerido", "Por favor, especifique la categoría 'Otros'.", parent=dialog_ref)
+            return
+        if not final_categoria: # Ensure some category is set
+             messagebox.showwarning("Campo Requerido", "La categoría es obligatoria.", parent=dialog_ref)
+             return
+
+
+        reembolsable_int = 1 if reembolsable_str == "Sí" else 0
+
+        try:
+            if gasto_id:
+                self.db_crm.update_gasto(gasto_id, case_id, descripcion, monto_float, fecha_db_format,
+                                         final_categoria, reembolsable_int, notas_val, comprobante_path_val)
+            else:
+                self.db_crm.add_gasto(case_id, descripcion, monto_float, fecha_db_format,
+                                      final_categoria, reembolsable_int, notas_val, comprobante_path_val)
+
+            dialog_ref.destroy()
+            self._load_gastos(case_id)
+            self._update_resumen(case_id)
+            messagebox.showinfo("Éxito", "Gasto guardado correctamente.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al guardar gasto: {e}", parent=dialog_ref)
+
 
     def edit_selected_gasto(self):
         """Editar gasto seleccionado"""
-        messagebox.showinfo("Funcionalidad", "Edición de gasto - Implementar según necesidades específicas")
+        selected_items = self.gastos_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Sin Selección", "Por favor, seleccione un gasto para editar.", parent=self)
+            return
+
+        selected_item = selected_items[0]
+        try:
+            gasto_id_str = self.gastos_tree.item(selected_item, 'values')[0] # Assuming ID is the first value
+            gasto_id = int(gasto_id_str)
+            self.open_gasto_dialog(gasto_id=gasto_id)
+        except (IndexError, ValueError):
+            messagebox.showerror("Error de Selección", "No se pudo obtener el ID del gasto seleccionado.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error inesperado: {e}", parent=self)
 
     def delete_selected_gasto(self):
         """Eliminar gasto seleccionado"""
-        messagebox.showinfo("Funcionalidad", "Eliminación de gasto - Implementar según necesidades específicas")
+        selected_items = self.gastos_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Sin Selección", "Por favor, seleccione un gasto para eliminar.", parent=self)
+            return
+
+        selected_item = selected_items[0]
+        try:
+            gasto_id_str = self.gastos_tree.item(selected_item, 'values')[0]
+            gasto_descripcion = self.gastos_tree.item(selected_item, 'values')[1]
+            gasto_id = int(gasto_id_str)
+
+            confirm = messagebox.askyesno("Confirmar Eliminación",
+                                          f"¿Está seguro de que desea eliminar el gasto: '{gasto_descripcion}' (ID: {gasto_id})?",
+                                          parent=self)
+            if confirm:
+                if self.db_crm.delete_gasto(gasto_id):
+                    if self.current_case and 'id' in self.current_case:
+                        self._load_gastos(self.current_case['id'])
+                        self._update_resumen(self.current_case['id'])
+                        messagebox.showinfo("Éxito", f"Gasto ID {gasto_id} eliminado correctamente.", parent=self)
+                    else:
+                        # Fallback: clear lists if no case context
+                        for item in self.gastos_tree.get_children(): # Clear only gastos_tree
+                            self.gastos_tree.delete(item)
+                        # Potentially call _update_resumen with None or handle appropriately
+                        self._update_resumen(None) if self.current_case is None else self._update_resumen(self.current_case.get('id'))
+
+                        messagebox.showinfo("Éxito", f"Gasto ID {gasto_id} eliminado. No hay caso activo para recargar completamente.", parent=self)
+                else:
+                    messagebox.showerror("Error de Eliminación", f"No se pudo eliminar el gasto ID {gasto_id} de la base de datos.", parent=self)
+        except (IndexError, ValueError):
+            messagebox.showerror("Error de Selección", "No se pudo obtener el ID del gasto seleccionado para eliminar.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error inesperado al eliminar el gasto: {e}", parent=self)
 
     # --- Métodos de Facturación ---
 

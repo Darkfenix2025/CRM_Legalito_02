@@ -1792,6 +1792,23 @@ def delete_gasto(gasto_id):
             close_db(conn)
     return success
 
+def get_gasto_by_id(gasto_id):
+    """Obtener un gasto específico por su ID."""
+    conn = connect_db()
+    gasto_data = None
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM gastos WHERE id = ?", (gasto_id,))
+            row = cursor.fetchone()
+            if row:
+                gasto_data = dict(row)
+        except sqlite3.Error as e:
+            print(f"Error al obtener gasto por ID {gasto_id}: {e}")
+        finally:
+            close_db(conn)
+    return gasto_data
+
 # === FACTURAS ===
 def add_factura(caso_id, numero, fecha, monto, fecha_vencimiento=None, descripcion="", estado="Pendiente"):
     """Agregar una nueva factura"""
