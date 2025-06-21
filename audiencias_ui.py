@@ -1,8 +1,7 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog # simpledialog para _seleccionar_caso_para_audiencia
+from tkinter import ttk, messagebox, simpledialog
 import datetime
 import re
-# import threading # No usado en este archivo
 import webbrowser
 import urllib.parse
 from tkcalendar import Calendar, DateEntry
@@ -15,147 +14,127 @@ class AudienciasTab(ttk.Frame):
         self.selected_audiencia_id = None
         self.fecha_seleccionada_agenda = datetime.date.today().strftime("%Y-%m-%d")
         self._create_widgets()
+        # self.update_add_audiencia_button_state() # Se llama al final de _create_widgets
 
     def _create_widgets(self):
-        # Configurar el frame principal de AudienciasTab
-        self.columnconfigure(0, weight=1) # Panel Izquierdo: Calendario
-        self.columnconfigure(1, weight=2) # Panel Derecho: Lista y Detalles (más espacio)
-        self.rowconfigure(0, weight=1)    # Fila única para ambos paneles
+        # El AudienciasTab (self) ahora se dividirá en dos columnas principales.
+        # Columna 0: Calendario y botón de agregar.
+        # Columna 1: Lista de audiencias, botones de acción y detalles.
+        self.columnconfigure(0, weight=1) # Calendario
+        self.columnconfigure(1, weight=2) # Lista y detalles
+        self.rowconfigure(0, weight=1)    # Fila única
 
-        # --- Panel Izquierdo: Calendario ---
-        # CORRECCIÓN: calendar_frame debe estar en row=0, column=0 de AudienciasTab
-        calendar_frame_container = ttk.Frame(self) # Contenedor para mejor padding si es necesario
-        calendar_frame_container.grid(row=0, column=0, sticky='nsew', padx=(0,5), pady=5)
-        calendar_frame_container.rowconfigure(0, weight=1)
-        calendar_frame_container.columnconfigure(0, weight=1)
+        # --- Columna 0: Calendario y Botón Agregar ---
+        col0_frame = ttk.Frame(self)
+        col0_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 5), pady=5)
+        col0_frame.rowconfigure(0, weight=1) # Calendario
+        col0_frame.rowconfigure(1, weight=0) # Botón
+        col0_frame.columnconfigure(0, weight=1)
 
-        calendar_frame = ttk.LabelFrame(calendar_frame_container, text="Calendario de Audiencias", padding="5")
-        calendar_frame.grid(row=0, column=0, sticky='nsew')
-        
-        calendar_frame.columnconfigure(0, weight=1) # Para el widget Calendar
-        calendar_frame.rowconfigure(0, weight=1)  # Para el widget Calendar (expansión vertical)
-        calendar_frame.rowconfigure(1, weight=0)  # Para add_aud_frame (sin expansión vertical)
+        calendar_labelframe = ttk.LabelFrame(col0_frame, text="Calendario", padding="5")
+        calendar_labelframe.grid(row=0, column=0, sticky='nsew', pady=(0,5))
+        calendar_labelframe.rowconfigure(0, weight=1)
+        calendar_labelframe.columnconfigure(0, weight=1)
 
-        # Calendario
-        self.calendar = Calendar(calendar_frame, selectmode='day', date_pattern='yyyy-mm-dd', 
+        self.calendar = Calendar(calendar_labelframe, selectmode='day', date_pattern='yyyy-mm-dd',
                                  tooltipforeground='black', tooltipbackground='#FFFFE0', locale='es_ES')
         self.calendar.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
         self.calendar.bind("<<CalendarSelected>>", self.actualizar_lista_audiencias)
         self.calendar.tag_config('audiencia_marcador', background='lightblue', foreground='black')
 
-        # --- Frame para el botón de agregar audiencia ---
-        # CORRECCIÓN: add_aud_frame es hijo de calendar_frame, y el botón es hijo de add_aud_frame
-        add_aud_frame = ttk.Frame(calendar_frame)
-        add_aud_frame.grid(row=1, column=0, sticky='ew', pady=(5, 0), padx=5) # Debajo del calendario
+        add_aud_frame = ttk.Frame(col0_frame)
+        add_aud_frame.grid(row=1, column=0, sticky='ew', pady=(5,0), padx=5)
+        self.add_audiencia_btn = ttk.Button(add_aud_frame, text="Agregar Audiencia",
+                                            command=lambda: self.abrir_dialogo_audiencia())
+        self.add_audiencia_btn.pack(fill=tk.X, padx=0, pady=0)
 
-        self.add_audiencia_btn = ttk.Button(add_aud_frame, text="Agregar Audiencia", 
-                                        command=lambda: self.abrir_dialogo_audiencia(), state=tk.NORMAL)
-        # CORRECCIÓN: .pack() es correcto aquí porque add_aud_frame es su padre dedicado
-        self.add_audiencia_btn.pack(fill=tk.X, padx=0, pady=0) # padx/pady dentro de add_aud_frame
 
-        # CORRECCIÓN: Llamada a método no existente comentada. Implementar si es necesario.
-        # self.update_add_audiencia_button_state() 
+        # --- Columna 1: Lista de Audiencias, Acciones y Detalles ---
+        col1_frame = ttk.Frame(self)
+        col1_frame.grid(row=0, column=1, sticky='nsew', padx=(5,0), pady=5)
+        col1_frame.rowconfigure(0, weight=2) # Lista de audiencias con más peso
+        col1_frame.rowconfigure(1, weight=0) # Botones de acción
+        col1_frame.rowconfigure(2, weight=1) # Detalles de audiencia
+        col1_frame.columnconfigure(0, weight=1)
 
-        # --- Panel Derecho: Lista y Detalles ---
-        right_panel = ttk.Frame(self)
-        right_panel.grid(row=0, column=1, sticky='nsew', padx=(5, 0), pady=5)
-        right_panel.columnconfigure(0, weight=1)
-        right_panel.rowconfigure(0, weight=1)  # Lista de audiencias (más peso)
-        right_panel.rowconfigure(1, weight=0)  # Botones
-        right_panel.rowconfigure(2, weight=0)  # Detalles (altura fija o mínima)
+        # Lista de Audiencias
+        audiencias_list_labelframe = ttk.LabelFrame(col1_frame, text="Audiencias del Día", padding="5")
+        audiencias_list_labelframe.grid(row=0, column=0, sticky='nsew', pady=(0,5))
+        audiencias_list_labelframe.rowconfigure(0, weight=1)
+        audiencias_list_labelframe.columnconfigure(0, weight=1)
 
-        # --- Lista de Audiencias ---
-        audiencias_list_frame = ttk.LabelFrame(right_panel, text="Audiencias del Día", padding="5")
-        audiencias_list_frame.grid(row=0, column=0, sticky='nsew', pady=(0, 5))
-        audiencias_list_frame.columnconfigure(0, weight=1)
-        audiencias_list_frame.rowconfigure(0, weight=1)
+        audiencias_cols = ("ID", "Hora", "Detalle", "Caso Asociado", "Link")
+        self.audiencias_tree = ttk.Treeview(audiencias_list_labelframe, columns=audiencias_cols, show='headings', selectmode="browse")
+        self.audiencias_tree.heading("ID", text="ID")
+        self.audiencias_tree.heading("Hora", text="Hora")
+        self.audiencias_tree.heading("Detalle", text="Detalle")
+        self.audiencias_tree.heading("Caso Asociado", text="Caso")
+        self.audiencias_tree.heading("Link", text="Link")
 
-        audiencias_cols = ('ID', 'Hora', 'Caso', 'Descripción')
-        self.audiencias_tree = ttk.Treeview(audiencias_list_frame, columns=audiencias_cols, show='headings', selectmode='browse')
-        
-        self.audiencias_tree.heading('ID', text='ID')
-        self.audiencias_tree.heading('Hora', text='Hora')
-        self.audiencias_tree.heading('Caso', text='Caso')
-        self.audiencias_tree.heading('Descripción', text='Descripción')
+        self.audiencias_tree.column("ID", width=30, stretch=tk.NO, anchor=tk.CENTER)
+        self.audiencias_tree.column("Hora", width=50, stretch=tk.NO, anchor=tk.CENTER)
+        self.audiencias_tree.column("Detalle", width=150, stretch=True)
+        self.audiencias_tree.column("Caso Asociado", width=120, stretch=True)
+        self.audiencias_tree.column("Link", width=100, stretch=True)
 
-        self.audiencias_tree.column('ID', width=30, stretch=tk.NO, anchor=tk.W)
-        self.audiencias_tree.column('Hora', width=60, stretch=tk.NO, anchor=tk.CENTER)
-        self.audiencias_tree.column('Caso', width=150, stretch=tk.YES)
-        self.audiencias_tree.column('Descripción', width=200, stretch=tk.YES)
-
-        audiencias_scrollbar_y = ttk.Scrollbar(audiencias_list_frame, orient=tk.VERTICAL, command=self.audiencias_tree.yview)
+        audiencias_scrollbar_y = ttk.Scrollbar(audiencias_list_labelframe, orient=tk.VERTICAL, command=self.audiencias_tree.yview)
         self.audiencias_tree.configure(yscrollcommand=audiencias_scrollbar_y.set)
         audiencias_scrollbar_y.grid(row=0, column=1, sticky='ns')
-        # Scrollbar X para audiencias_tree (opcional, si el contenido puede ser muy ancho)
-        audiencias_scrollbar_x = ttk.Scrollbar(audiencias_list_frame, orient=tk.HORIZONTAL, command=self.audiencias_tree.xview)
+        self.audiencias_tree.grid(row=0, column=0, sticky='nsew')
+        # Scrollbar X (opcional)
+        audiencias_scrollbar_x = ttk.Scrollbar(audiencias_list_labelframe, orient=tk.HORIZONTAL, command=self.audiencias_tree.xview)
         self.audiencias_tree.configure(xscrollcommand=audiencias_scrollbar_x.set)
         audiencias_scrollbar_x.grid(row=1, column=0, sticky='ew')
 
 
-        self.audiencias_tree.grid(row=0, column=0, sticky='nsew')
-
         self.audiencias_tree.bind('<<TreeviewSelect>>', self.on_audiencia_tree_select)
-        self.audiencias_tree.bind('<Double-1>', self.abrir_link_audiencia_seleccionada)
+        self.audiencias_tree.bind("<Double-1>", self.abrir_link_audiencia_seleccionada)
 
-        # --- Botones de Acción ---
-        audiencias_buttons_frame = ttk.Frame(right_panel)
-        audiencias_buttons_frame.grid(row=1, column=0, sticky='ew', pady=5)
-        # Configurar columnas para que los botones se distribuyan
-        audiencias_buttons_frame.columnconfigure(0, weight=1)
-        audiencias_buttons_frame.columnconfigure(1, weight=1)
-        audiencias_buttons_frame.columnconfigure(2, weight=1)
-        audiencias_buttons_frame.columnconfigure(3, weight=1)
+        # Botones de Acción para Audiencias
+        audiencia_actions_frame = ttk.Frame(col1_frame)
+        audiencia_actions_frame.grid(row=1, column=0, sticky='ew', pady=5)
+        # Distribuir espacio equitativamente entre los botones
+        for i in range(4): # Asumiendo 4 botones
+            audiencia_actions_frame.columnconfigure(i, weight=1)
 
-        self.edit_audiencia_btn = ttk.Button(audiencias_buttons_frame, text="Editar", 
+        self.edit_audiencia_btn = ttk.Button(audiencia_actions_frame, text="Editar",
                                            command=self.editar_audiencia_seleccionada, state=tk.DISABLED)
-        self.edit_audiencia_btn.grid(row=0, column=0, sticky='ew', padx=(0, 2))
-
-        self.delete_audiencia_btn = ttk.Button(audiencias_buttons_frame, text="Eliminar", 
+        self.edit_audiencia_btn.grid(row=0, column=0, sticky='ew', padx=(0,2))
+        self.delete_audiencia_btn = ttk.Button(audiencia_actions_frame, text="Eliminar",
                                              command=self.eliminar_audiencia_seleccionada, state=tk.DISABLED)
         self.delete_audiencia_btn.grid(row=0, column=1, sticky='ew', padx=2)
-
-        self.open_link_btn = ttk.Button(audiencias_buttons_frame, text="Abrir Link", 
-                                       command=self.abrir_link_audiencia_seleccionada, state=tk.DISABLED)
-        self.open_link_btn.grid(row=0, column=2, sticky='ew', padx=2)
-
-        self.share_btn = ttk.Button(audiencias_buttons_frame, text="Compartir", 
+        self.share_btn = ttk.Button(audiencia_actions_frame, text="Compartir",
                                    command=self.mostrar_menu_compartir_audiencia, state=tk.DISABLED)
-        self.share_btn.grid(row=0, column=3, sticky='ew', padx=(2, 0))
+        self.share_btn.grid(row=0, column=2, sticky='ew', padx=2)
+        self.open_link_btn = ttk.Button(audiencia_actions_frame, text="Abrir Link",
+                                       command=self.abrir_link_audiencia_seleccionada, state=tk.DISABLED)
+        self.open_link_btn.grid(row=0, column=3, sticky='ew', padx=(2,0))
 
-        # --- Detalles de Audiencia ---
-        detalles_frame = ttk.LabelFrame(right_panel, text="Detalles de la Audiencia", padding="5")
-        detalles_frame.grid(row=2, column=0, sticky='ew', pady=(5, 0))
-        detalles_frame.columnconfigure(1, weight=1) # Para que los labels de datos se expandan
 
-        row_det = 0
-        ttk.Label(detalles_frame, text="Fecha:").grid(row=row_det, column=0, sticky=tk.W, pady=2, padx=5)
-        self.audiencia_fecha_lbl = ttk.Label(detalles_frame, text="")
-        self.audiencia_fecha_lbl.grid(row=row_det, column=1, sticky=tk.EW, pady=2, padx=5)
-        row_det += 1
+        # Detalles Completos de Audiencia (usando tk.Text)
+        audiencia_details_labelframe = ttk.LabelFrame(col1_frame, text="Detalles Completos Audiencia", padding="5")
+        audiencia_details_labelframe.grid(row=2, column=0, sticky='nsew', pady=(5,0))
+        audiencia_details_labelframe.rowconfigure(0, weight=1)
+        audiencia_details_labelframe.columnconfigure(0, weight=1)
 
-        ttk.Label(detalles_frame, text="Hora:").grid(row=row_det, column=0, sticky=tk.W, pady=2, padx=5)
-        self.audiencia_hora_lbl = ttk.Label(detalles_frame, text="")
-        self.audiencia_hora_lbl.grid(row=row_det, column=1, sticky=tk.EW, pady=2, padx=5)
-        row_det += 1
-
-        ttk.Label(detalles_frame, text="Caso:").grid(row=row_det, column=0, sticky=tk.W, pady=2, padx=5)
-        self.audiencia_caso_lbl = ttk.Label(detalles_frame, text="", wraplength=300) # wraplength ajustado
-        self.audiencia_caso_lbl.grid(row=row_det, column=1, sticky=tk.EW, pady=2, padx=5)
-        row_det += 1
-
-        ttk.Label(detalles_frame, text="Descripción:").grid(row=row_det, column=0, sticky=tk.NW, pady=2, padx=5)
-        self.audiencia_desc_lbl = ttk.Label(detalles_frame, text="", wraplength=300) # wraplength ajustado
-        self.audiencia_desc_lbl.grid(row=row_det, column=1, sticky=tk.EW, pady=2, padx=5)
-        row_det += 1
-
-        ttk.Label(detalles_frame, text="Link:").grid(row=row_det, column=0, sticky=tk.W, pady=2, padx=5)
-        self.audiencia_link_lbl = ttk.Label(detalles_frame, text="", foreground="blue", cursor="hand2", wraplength=300)
-        self.audiencia_link_lbl.grid(row=row_det, column=1, sticky=tk.EW, pady=2, padx=5)
-        self.audiencia_link_lbl.bind("<Button-1>", lambda e: self.abrir_link_audiencia_seleccionada()) # Asegurar que llama al método
-        row_det += 1
+        self.audiencia_details_text = tk.Text(audiencia_details_labelframe, height=5, wrap=tk.WORD, state=tk.DISABLED)
+        audiencia_details_scroll = ttk.Scrollbar(audiencia_details_labelframe, orient=tk.VERTICAL, command=self.audiencia_details_text.yview)
+        self.audiencia_details_text.configure(yscrollcommand=audiencia_details_scroll.set)
         
+        self.audiencia_details_text.grid(row=0, column=0, sticky='nsew')
+        audiencia_details_scroll.grid(row=0, column=1, sticky='ns')
+
         self.cargar_audiencias_fecha_actual()
-        self.marcar_dias_audiencias_calendario() # Llamar después de cargar
+        self.marcar_dias_audiencias_calendario()
+        self.update_add_audiencia_button_state()
+
+
+    def update_add_audiencia_button_state(self):
+        # El estado del botón "Agregar Audiencia" depende de si hay un caso seleccionado en el app_controller
+        if hasattr(self.app_controller, 'selected_case') and self.app_controller.selected_case:
+            self.add_audiencia_btn.config(state=tk.NORMAL)
+        else:
+            self.add_audiencia_btn.config(state=tk.DISABLED)
 
     # def update_add_audiencia_button_state(self):
     #     # Implementar si es necesario, por ejemplo:
@@ -174,159 +153,153 @@ class AudienciasTab(ttk.Frame):
             self.calendar.selection_set(current_date)
         except Exception as e:
             print(f"Error setting calendar initial date: {e}")
-        self.actualizar_lista_audiencias()
-        # self.marcar_dias_audiencias_calendario() # Se llama al final de _create_widgets
+        self.actualizar_lista_audiencias() # Llamar sin argumento de evento para la carga inicial
+        self.marcar_dias_audiencias_calendario()
 
     def actualizar_lista_audiencias(self, event=None):
-        if hasattr(self.calendar, 'selection_get') and self.calendar.selection_get():
-            try:
-                fecha_sel = self.calendar.selection_get()
-                self.fecha_seleccionada_agenda = fecha_sel.strftime("%Y-%m-%d")
-            except Exception as e: # Podría ser None si no hay selección
-                print(f"Error obteniendo fecha del calendario: {e}")
-                self.fecha_seleccionada_agenda = datetime.date.today().strftime("%Y-%m-%d")
-        else: # Si no hay event o selection_get no funciona como se espera
-             self.fecha_seleccionada_agenda = datetime.date.today().strftime("%Y-%m-%d")
-
+        if event: # Solo actualizar si es un evento de calendario (selección de fecha)
+            if hasattr(self.calendar, 'selection_get') and self.calendar.selection_get():
+                try:
+                    fecha_sel = self.calendar.selection_get()
+                    self.fecha_seleccionada_agenda = fecha_sel.strftime("%Y-%m-%d")
+                except Exception as e:
+                    print(f"Error obteniendo fecha del calendario: {e}")
+                    self.fecha_seleccionada_agenda = datetime.date.today().strftime("%Y-%m-%d")
+            else: # Fallback si no se puede obtener la selección del calendario
+                 self.fecha_seleccionada_agenda = datetime.date.today().strftime("%Y-%m-%d")
+        # Si no hay evento (ej. carga inicial o refresh_data), usamos la fecha ya almacenada en self.fecha_seleccionada_agenda.
 
         for item in self.audiencias_tree.get_children():
             self.audiencias_tree.delete(item)
         
-        self.limpiar_detalles_audiencia() # Limpiar detalles al cambiar de día
-        self.deshabilitar_botones_audiencia() # Deshabilitar botones
+        self.limpiar_detalles_audiencia_text()
+        self.deshabilitar_botones_audiencia()
 
         try:
-            audiencias = self.db_crm.get_audiencias_by_date(self.fecha_seleccionada_agenda)
-            for audiencia in audiencias:
-                caso_info = "Sin caso asociado"
-                if audiencia.get('caso_id'):
-                    try:
-                        caso = self.db_crm.get_case_by_id(audiencia['caso_id'])
-                        if caso:
-                            caso_info = f"{caso.get('caratula', 'Sin carátula')}"
-                        else:
-                            caso_info = f"Caso ID: {audiencia['caso_id']} (No encontrado)"
-                    except Exception as e_caso:
-                        print(f"Error obteniendo info del caso {audiencia['caso_id']}: {e_caso}")
-                        caso_info = f"Caso ID: {audiencia['caso_id']} (Error)"
+            audiencias = self.db_crm.get_audiencias_by_fecha(self.fecha_seleccionada_agenda)
+            for aud in audiencias:
+                hora = aud.get('hora', '--:--') or "--:--"
+                desc_full = aud.get('descripcion','')
+                desc_corta = (desc_full.split('\n')[0])[:60] + ('...' if len(desc_full) > 60 else '')
 
-                self.audiencias_tree.insert('', 'end', values=(
-                    audiencia['id'],
-                    audiencia.get('hora', ''),
-                    caso_info,
-                    audiencia.get('descripcion', '')
-                ))
+                caso_caratula_full = aud.get('caso_caratula', 'Caso Desc.')
+                if 'caso_caratula' not in aud and aud.get('caso_id'): # Si falta la carátula, buscarla
+                     caso_obj = self.db_crm.get_case_by_id(aud['caso_id'])
+                     if caso_obj:
+                         caso_caratula_full = caso_obj.get('caratula', 'Caso Desc.')
+
+                caso_corto = caso_caratula_full[:50] + ('...' if len(caso_caratula_full) > 50 else '')
+
+                link_full = aud.get('link','') or ""
+                link_corto = link_full[:40] + ('...' if len(link_full) > 40 else '')
+
+                self.audiencias_tree.insert("", tk.END, values=(
+                    aud['id'],
+                    hora,
+                    desc_corta,
+                    caso_corto,
+                    link_corto
+                ), iid=str(aud['id']))
         except Exception as e:
-            messagebox.showerror("Error", f"Error al cargar audiencias: {e}")
+            messagebox.showerror("Error", f"Error al cargar audiencias: {e}", parent=self)
 
     def marcar_dias_audiencias_calendario(self):
         try:
-            # Limpiar marcas anteriores para evitar duplicados si se llama múltiples veces
-            # Es importante que el tag 'audiencia' (o el que uses en calevent_create)
-            # sea el mismo que se usa en tag_config.
-            #calevent_remove(tag=None) removes all events.
-            self.calendar.calevent_remove(tag='audiencia') # Solo remueve los eventos con este tag específico.
-
-            fechas_con_audiencias = self.db_crm.get_dates_with_audiencias()
+            self.calendar.calevent_remove(tag='audiencia_marcador') # Usar el tag definido en _create_widgets
+            fechas_con_audiencias = self.db_crm.get_fechas_con_audiencias() # get_fechas_con_audiencias en lugar de get_dates_with_audiencias
             
             for fecha_str in fechas_con_audiencias:
                 try:
                     fecha = datetime.datetime.strptime(fecha_str, "%Y-%m-%d").date()
-                    # Usar un tag consistente, por ejemplo "audiencia_marcador"
-                    self.calendar.calevent_create(fecha, "Audiencia", tags='audiencia')
-                except ValueError: # Si la fecha_str no es válida
+                    self.calendar.calevent_create(fecha, "Audiencia", tags='audiencia_marcador') # Usar el tag correcto
+                except ValueError:
                     print(f"Formato de fecha inválido en base de datos: {fecha_str}")
                     continue
-            
-            # La configuración del tag debe hacerse una vez, idealmente en _create_widgets,
-            # pero aquí está bien si se asegura que no cause problemas.
-            # self.calendar.tag_config('audiencia', background="lightblue", foreground="darkblue")
-            # El tag_config ya está en _create_widgets, así que no es necesario repetirlo.
-            
         except Exception as e:
             print(f"Error al marcar días con audiencias: {e}")
 
     def on_audiencia_tree_select(self, event=None):
         selected_items = self.audiencias_tree.selection()
         if selected_items:
-            selected_item = selected_items[0]
-            audiencia_id_str = self.audiencias_tree.item(selected_item, 'values')[0]
-            
+            selected_item_iid = selected_items[0] # El iid es el ID de la audiencia
             try:
-                audiencia_id = int(audiencia_id_str)
-                self.selected_audiencia_id = audiencia_id # Guardar como int
-                self.mostrar_detalles_audiencia(audiencia_id)
+                audiencia_id = int(selected_item_iid)
+                self.selected_audiencia_id = audiencia_id
+                self.mostrar_detalles_audiencia_text(audiencia_id) # Llamar a la nueva función de detalles
                 self.habilitar_botones_audiencia()
             except ValueError:
-                 messagebox.showerror("Error", f"ID de audiencia inválido: {audiencia_id_str}")
+                 messagebox.showerror("Error", f"ID de audiencia inválido: {selected_item_iid}", parent=self)
                  self.selected_audiencia_id = None
-                 self.limpiar_detalles_audiencia()
+                 self.limpiar_detalles_audiencia_text()
                  self.deshabilitar_botones_audiencia()
             except Exception as e:
-                messagebox.showerror("Error", f"Error al obtener detalles de la audiencia: {e}")
+                messagebox.showerror("Error", f"Error al obtener detalles de la audiencia: {e}", parent=self)
                 self.selected_audiencia_id = None
-                self.limpiar_detalles_audiencia()
+                self.limpiar_detalles_audiencia_text()
                 self.deshabilitar_botones_audiencia()
         else:
             self.selected_audiencia_id = None
-            self.limpiar_detalles_audiencia()
+            self.limpiar_detalles_audiencia_text()
             self.deshabilitar_botones_audiencia()
 
-    def mostrar_detalles_audiencia(self, audiencia_id):
+    def mostrar_detalles_audiencia_text(self, audiencia_id):
+        """Muestra los detalles completos de la audiencia en el widget tk.Text."""
+        self.limpiar_detalles_audiencia_text()
+        self.audiencia_details_text.config(state=tk.NORMAL)
         try:
-            audiencia = self.db_crm.get_audiencia_by_id(audiencia_id)
+            audiencia = self.db_crm.get_audiencia_by_id(audiencia_id) # Este método ya hace JOIN con caso y cliente
             if audiencia:
-                self.audiencia_fecha_lbl.config(text=audiencia.get('fecha', 'N/A'))
-                self.audiencia_hora_lbl.config(text=audiencia.get('hora', 'N/A'))
-                self.audiencia_desc_lbl.config(text=audiencia.get('descripcion', 'N/A'))
+                hora = audiencia.get('hora') or "Sin hora"
+                link = audiencia.get('link') or "Sin link"
+                rec_activo = "Sí" if audiencia.get('recordatorio_activo') else "No"
+                rec_minutos = f" ({audiencia.get('recordatorio_minutos', 15)} min antes)" if audiencia.get('recordatorio_activo') else ""
                 
-                caso_info = "Sin caso asociado"
-                if audiencia.get('caso_id'):
-                    try:
-                        caso = self.db_crm.get_case_by_id(audiencia['caso_id'])
-                        if caso:
-                            caso_info = f"{caso.get('caratula', 'Sin carátula')}"
-                        else:
-                             caso_info = f"Caso ID: {audiencia['caso_id']} (No encontrado)"
-                    except:
-                        caso_info = f"Caso ID: {audiencia['caso_id']} (Error al cargar)"
-                self.audiencia_caso_lbl.config(text=caso_info)
-                
-                link = audiencia.get('link', '')
-                self.audiencia_link_lbl.config(text=link if link else "Sin link")
+                caso_caratula = audiencia.get('caso_caratula', 'Caso Desconocido')
+                # cliente_nombre = audiencia.get('cliente_nombre', 'Cliente Desconocido') # No se usa en el formato de main_app.py
+
+                # Formato similar a main_app.py
+                texto_detalle = (
+                    f"**Audiencia ID:** {audiencia['id']}\n"
+                    # f"**Cliente:** {cliente_nombre}\n" # No presente en la versión original de main_app para detalles
+                    f"**Caso:** {caso_caratula} (ID: {audiencia['caso_id']})\n"
+                    f"------------------------------------\n"
+                    f"**Fecha:** {audiencia.get('fecha', 'N/A')}\n"
+                    f"**Hora:** {hora}\n\n"
+                    f"**Descripción:**\n{audiencia.get('descripcion', 'N/A')}\n\n"
+                    f"**Link:**\n{link}\n\n"
+                    f"**Recordatorio:** {rec_activo}{rec_minutos}"
+                )
+                self.audiencia_details_text.insert('1.0', texto_detalle)
             else:
-                self.limpiar_detalles_audiencia()
+                self.audiencia_details_text.insert('1.0', "Detalles no disponibles.")
         except Exception as e:
-            messagebox.showerror("Error", f"Error al mostrar detalles: {e}")
-            self.limpiar_detalles_audiencia()
+            messagebox.showerror("Error", f"Error al mostrar detalles: {e}", parent=self)
+            self.audiencia_details_text.insert('1.0', "Error al cargar detalles.")
+        finally:
+            self.audiencia_details_text.config(state=tk.DISABLED)
 
-
-    def limpiar_detalles_audiencia(self):
-        self.audiencia_fecha_lbl.config(text="")
-        self.audiencia_hora_lbl.config(text="")
-        self.audiencia_caso_lbl.config(text="")
-        self.audiencia_desc_lbl.config(text="")
-        self.audiencia_link_lbl.config(text="")
+    def limpiar_detalles_audiencia_text(self):
+        """Limpia el widget tk.Text de detalles."""
+        if hasattr(self, 'audiencia_details_text'): # Asegurar que el widget existe
+            self.audiencia_details_text.config(state=tk.NORMAL)
+            self.audiencia_details_text.delete('1.0', tk.END)
+            self.audiencia_details_text.config(state=tk.DISABLED)
 
     def habilitar_botones_audiencia(self):
         self.edit_audiencia_btn.config(state=tk.NORMAL)
-        # Habilitar delete_audiencia_btn si se considera seguro.
-        # Por ahora, lo dejo como estaba en tu código original (deshabilitado hasta que se corrija en el código).
-        # Si quieres habilitarlo:
         self.delete_audiencia_btn.config(state=tk.NORMAL) 
         self.share_btn.config(state=tk.NORMAL) 
         
-        try:
-            if self.selected_audiencia_id:
+        link_presente = False
+        if self.selected_audiencia_id:
+            try:
                 audiencia = self.db_crm.get_audiencia_by_id(self.selected_audiencia_id)
-                if audiencia and audiencia.get('link'):
-                    self.open_link_btn.config(state=tk.NORMAL)
-                else:
-                    self.open_link_btn.config(state=tk.DISABLED)
-            else: # No debería llegar aquí si se llama después de una selección válida
-                self.open_link_btn.config(state=tk.DISABLED)
-        except Exception: # Captura general por si get_audiencia_by_id falla
-            self.open_link_btn.config(state=tk.DISABLED)
+                if audiencia and audiencia.get('link') and audiencia.get('link').strip():
+                    link_presente = True
+            except Exception as e:
+                print(f"Error al verificar link de audiencia: {e}")
+
+        self.open_link_btn.config(state=tk.NORMAL if link_presente else tk.DISABLED)
 
 
     def deshabilitar_botones_audiencia(self):
@@ -335,8 +308,8 @@ class AudienciasTab(ttk.Frame):
         self.open_link_btn.config(state=tk.DISABLED)
         self.share_btn.config(state=tk.DISABLED)
 
-    def abrir_dialogo_audiencia(self, audiencia_id=None, parent_window=None):
-        parent = parent_window if parent_window else self.app_controller.root
+    def abrir_dialogo_audiencia(self, audiencia_id=None, parent_window=None): # Mantenemos parent_window por si se usa desde otro lado
+        parent_to_use = parent_window if parent_window else self.app_controller.root
         dialog = tk.Toplevel(parent)
         dialog.title("Alta/Edición de Audiencia")
         dialog.transient(self.app_controller.root)
