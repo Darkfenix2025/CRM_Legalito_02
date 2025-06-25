@@ -1,0 +1,17 @@
+Flask>=2.0
+Flask-SQLAlchemy>=2.5
+Flask-Migrate>=3.0
+psycopg2-binary>=2.9 # Para PostgreSQL (opcional si solo se usa SQLite)
+python-dotenv>=0.19
+Flask-JWT-Extended>=4.0
+google-generativeai>=0.3 # SDK de Python para Gemini
+Flask-CORS>=3.0
+SQLAlchemy>=1.4 # Asegurar compatibilidad con Flask-SQLAlchemy
+Werkzeug>=2.0 # Flask lo requiere
+Jinja2>=3.0 # Flask lo requiere
+itsdangerous>=2.0 # Flask lo requiere
+click>=8.0 # Flask lo requiere
+blinker>=1.4 # Señales en Flask
+python-editor>=1.0 # Usado por Flask-Migrate
+alembic>=1.7 # Usado por Flask-Migrate
+Mako>=1.1 # Usado por Alembic

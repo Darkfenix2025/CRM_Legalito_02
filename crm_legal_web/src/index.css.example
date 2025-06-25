@@ -1,0 +1,53 @@
+/* Importa las directivas base, de componentes y utilidades de Tailwind CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilos globales adicionales o overrides si son necesarios */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f4f7f9; /* Un color de fondo base suave */
+  color: #333;
+}
+
+/* Ejemplo de un estilo global para todos los inputs, si se desea */
+/*
+input, textarea, select {
+  @apply border-gray-300 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50;
+}
+*/
+
+/* Estilos para los scrollbars (opcional, para un look más consistente) */
+/* Webkit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Firefox */
+/* Para Firefox, los scrollbars se estilizan de forma diferente y es más limitado.
+   A menudo se usan propiedades como scrollbar-width y scrollbar-color en el elemento html o body.
+   html {
+     scrollbar-width: thin;
+     scrollbar-color: #c1c1c1 #f1f1f1;
+   }
+*/

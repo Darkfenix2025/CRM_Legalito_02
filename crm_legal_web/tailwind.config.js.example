@@ -1,0 +1,24 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}", // Asegúrate que escanea tus archivos de React/TypeScript
+  ],
+  theme: {
+    extend: {
+      // Aquí puedes extender el tema de Tailwind si necesitas colores personalizados, fuentes, etc.
+      // Ejemplo:
+      // colors: {
+      //   'brand-blue': '#007bff',
+      //   'legal-dark': '#2c3e50',
+      // },
+      // fontFamily: {
+      //   sans: ['Inter', 'sans-serif'], // Si quieres usar una fuente personalizada
+      // },
+    },
+  },
+  plugins: [
+    // Aquí puedes añadir plugins de Tailwind si los necesitas, por ejemplo, para formularios:
+    // require('@tailwindcss/forms'),
+  ],
+}
