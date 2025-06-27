@@ -102,6 +102,8 @@ class FinancieroTab(ttk.Frame):
 
         # Bind para selección
         self.honorarios_tree.bind('<<TreeviewSelect>>', self.on_honorario_select)
+        self.honorarios_tree.bind('<Double-1>', self._edit_selected_honorario_wrapper)
+
 
     def _create_gastos_tab(self):
         """Crear la pestaña de gestión de gastos"""
@@ -165,6 +167,51 @@ class FinancieroTab(ttk.Frame):
 
         # Bind para selección
         self.gastos_tree.bind('<<TreeviewSelect>>', self.on_gasto_select)
+        self.gastos_tree.bind('<Double-1>', self._edit_selected_gasto_wrapper)
+
+
+    def _edit_selected_gasto_wrapper(self, event=None):
+        selected_items = self.gastos_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Sin Selección", "Seleccione un gasto para editar.", parent=self.app_controller.root)
+            return
+        gasto_id_str = self.gastos_tree.item(selected_items[0], 'values')[0]
+        try:
+            gasto_id = int(gasto_id_str)
+            self.open_gasto_dialog(gasto_id=gasto_id)
+        except ValueError:
+            messagebox.showerror("Error", "ID de gasto inválido.", parent=self.app_controller.root)
+
+    def edit_selected_gasto(self): # Kept for explicitness if called from a button not via double-click
+        self._edit_selected_gasto_wrapper()
+
+
+    def delete_selected_gasto(self):
+        """Eliminar gasto seleccionado"""
+        selected_items = self.gastos_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Sin Selección", "Seleccione un gasto para eliminar.", parent=self.app_controller.root)
+            return
+
+        gasto_id_str = self.gastos_tree.item(selected_items[0], 'values')[0]
+        gasto_desc = self.gastos_tree.item(selected_items[0], 'values')[1]
+
+        if messagebox.askyesno("Confirmar Eliminación",
+                               f"¿Está seguro de que desea eliminar el gasto:\n'{gasto_desc}'?",
+                               parent=self.app_controller.root):
+            try:
+                gasto_id = int(gasto_id_str)
+                if self.db_crm.delete_gasto(gasto_id):
+                    messagebox.showinfo("Éxito", "Gasto eliminado correctamente.", parent=self.app_controller.root)
+                    self._load_gastos(self.current_case['id'])
+                    self._update_resumen(self.current_case['id'])
+                else:
+                    messagebox.showerror("Error", "No se pudo eliminar el gasto.", parent=self.app_controller.root)
+            except ValueError:
+                messagebox.showerror("Error", "ID de gasto inválido.", parent=self.app_controller.root)
+            except Exception as e:
+                 messagebox.showerror("Error", f"Error al eliminar gasto: {e}", parent=self.app_controller.root)
+
 
     def _create_facturacion_tab(self):
         """Crear la pestaña de facturación"""
@@ -228,6 +275,50 @@ class FinancieroTab(ttk.Frame):
 
         # Bind para selección
         self.facturas_tree.bind('<<TreeviewSelect>>', self.on_factura_select)
+        self.facturas_tree.bind('<Double-1>', self._edit_selected_factura_wrapper)
+
+
+    def _edit_selected_factura_wrapper(self, event=None):
+        selected_items = self.facturas_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Sin Selección", "Seleccione una factura para editar.", parent=self.app_controller.root)
+            return
+        factura_id_str = self.facturas_tree.item(selected_items[0], 'values')[0]
+        try:
+            factura_id = int(factura_id_str)
+            self.open_factura_dialog(factura_id=factura_id)
+        except ValueError:
+            messagebox.showerror("Error", "ID de factura inválido.", parent=self.app_controller.root)
+
+    def edit_selected_factura(self): # For explicit button call
+        self._edit_selected_factura_wrapper()
+
+    def delete_selected_factura(self):
+        """Eliminar factura seleccionada"""
+        selected_items = self.facturas_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Sin Selección", "Seleccione una factura para eliminar.", parent=self.app_controller.root)
+            return
+
+        factura_id_str = self.facturas_tree.item(selected_items[0], 'values')[0]
+        factura_num = self.facturas_tree.item(selected_items[0], 'values')[1]
+
+        if messagebox.askyesno("Confirmar Eliminación",
+                               f"¿Está seguro de que desea eliminar la factura Nro: {factura_num}?",
+                               parent=self.app_controller.root):
+            try:
+                factura_id = int(factura_id_str)
+                if self.db_crm.delete_factura(factura_id):
+                    messagebox.showinfo("Éxito", "Factura eliminada correctamente.", parent=self.app_controller.root)
+                    self._load_facturas(self.current_case['id'])
+                    self._update_resumen(self.current_case['id'])
+                else:
+                    messagebox.showerror("Error", "No se pudo eliminar la factura.", parent=self.app_controller.root)
+            except ValueError:
+                messagebox.showerror("Error", "ID de factura inválido.", parent=self.app_controller.root)
+            except Exception as e:
+                 messagebox.showerror("Error", f"Error al eliminar factura: {e}", parent=self.app_controller.root)
+
 
     def _create_resumen_tab(self):
         """Crear la pestaña de resumen financiero"""
@@ -374,6 +465,16 @@ class FinancieroTab(ttk.Frame):
 
     # --- Métodos de Honorarios ---
 
+    # Note on Dialogs in FinancieroTab:
+    # The pattern for open_honorario_dialog, open_gasto_dialog, and open_factura_dialog
+    # is similar:
+    # 1. Check if a current_case is selected.
+    # 2. Create a Toplevel dialog, modal to the main application window (self.app_controller.root).
+    #    (Could be enhanced to be modal to CaseDetailsWindow if this tab is hosted there).
+    # 3. Populate dialog fields with existing data if an item_id is provided (editing).
+    # 4. Provide a save mechanism that calls the appropriate add_* or update_* method in db_crm.
+    # 5. After saving, reload the relevant list in this tab and update the _update_resumen.
+
     def _load_honorarios(self, case_id):
         """Cargar honorarios del caso"""
         # Limpiar TreeView
@@ -424,79 +525,289 @@ class FinancieroTab(ttk.Frame):
         fecha_var = tk.StringVar(value=datetime.date.today().strftime("%Y-%m-%d"))
         estado_var = tk.StringVar(value="Pendiente")
         tipo_var = tk.StringVar(value="Consulta")
+        notas_var = tk.StringVar() # Para el campo de notas
+
+        honorario_data = None
+        if honorario_id:
+            honorario_data = self.db_crm.get_honorario_by_id(honorario_id) # Necesitas esta función en crm_database.py
+            if honorario_data:
+                descripcion_var.set(honorario_data.get('descripcion', ''))
+                monto_var.set(str(honorario_data.get('monto', '0.0')))
+                fecha_var.set(honorario_data.get('fecha', datetime.date.today().strftime("%Y-%m-%d")))
+                estado_var.set(honorario_data.get('estado', 'Pendiente'))
+                tipo_var.set(honorario_data.get('tipo', 'Consulta'))
+                notas_var.set(honorario_data.get('notas', ''))
+            else:
+                messagebox.showerror("Error", "No se pudo cargar el honorario para editar.", parent=dialog)
+                dialog.destroy()
+                return
 
         # Formulario
         row = 0
-        ttk.Label(main_frame, text="Descripción:").grid(row=row, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=descripcion_var, width=30).grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
+        ttk.Label(main_frame, text="Descripción:").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Entry(main_frame, textvariable=descripcion_var, width=40).grid(row=row, column=1, sticky=tk.EW, pady=2, padx=5)
         row += 1
 
-        ttk.Label(main_frame, text="Monto:").grid(row=row, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=monto_var, width=30).grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
+        ttk.Label(main_frame, text="Monto:").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Entry(main_frame, textvariable=monto_var, width=15).grid(row=row, column=1, sticky=tk.W, pady=2, padx=5)
         row += 1
 
-        ttk.Label(main_frame, text="Fecha:").grid(row=row, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=fecha_var, width=30).grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
+        ttk.Label(main_frame, text="Fecha (YYYY-MM-DD):").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        # Considerar usar tkcalendar.DateEntry si está disponible y se quiere un selector de fecha
+        ttk.Entry(main_frame, textvariable=fecha_var, width=15).grid(row=row, column=1, sticky=tk.W, pady=2, padx=5)
         row += 1
 
-        ttk.Label(main_frame, text="Estado:").grid(row=row, column=0, sticky=tk.W, pady=5)
+        ttk.Label(main_frame, text="Estado:").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
         ttk.Combobox(main_frame, textvariable=estado_var, values=["Pendiente", "Cobrado", "Cancelado"], 
-                    state="readonly").grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
+                    state="readonly", width=18).grid(row=row, column=1, sticky=tk.W, pady=2, padx=5)
         row += 1
 
-        ttk.Label(main_frame, text="Tipo:").grid(row=row, column=0, sticky=tk.W, pady=5)
-        ttk.Combobox(main_frame, textvariable=tipo_var, values=["Consulta", "Representación", "Gestión", "Otro"], 
-                    state="readonly").grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
+        ttk.Label(main_frame, text="Tipo:").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Combobox(main_frame, textvariable=tipo_var, values=["Consulta", "Representación", "Gestión", "Acuerdo", "Otro"],
+                    state="readonly", width=18).grid(row=row, column=1, sticky=tk.W, pady=2, padx=5)
         row += 1
+
+        ttk.Label(main_frame, text="Notas:").grid(row=row, column=0, sticky=tk.NW, pady=2, padx=5)
+        notas_text = tk.Text(main_frame, height=4, width=30, wrap=tk.WORD)
+        notas_text.grid(row=row, column=1, sticky=tk.EW, pady=2, padx=5)
+        if honorario_data:
+            notas_text.insert('1.0', notas_var.get())
+        row += 1
+
 
         main_frame.columnconfigure(1, weight=1)
 
         # Botones
         buttons_frame = ttk.Frame(main_frame)
-        buttons_frame.grid(row=row, column=0, columnspan=2, pady=20)
+        buttons_frame.grid(row=row, column=0, columnspan=2, pady=15, sticky=tk.E)
 
         ttk.Button(buttons_frame, text="Guardar", 
                   command=lambda: self._save_honorario(honorario_id, self.current_case['id'], 
                                                       descripcion_var.get(), monto_var.get(),
-                                                      fecha_var.get(), estado_var.get(), tipo_var.get(), dialog)).pack(side=tk.LEFT, padx=(0, 10))
+                                                      fecha_var.get(), estado_var.get(), tipo_var.get(),
+                                                      notas_text.get('1.0', tk.END).strip(), dialog)).pack(side=tk.LEFT, padx=(0, 10))
         ttk.Button(buttons_frame, text="Cancelar", command=dialog.destroy).pack(side=tk.LEFT)
 
-    def _save_honorario(self, honorario_id, case_id, descripcion, monto, fecha, estado, tipo, dialog):
+        dialog.bind("<Return>", lambda event: self._save_honorario(honorario_id, self.current_case['id'],
+                                                      descripcion_var.get(), monto_var.get(),
+                                                      fecha_var.get(), estado_var.get(), tipo_var.get(),
+                                                      notas_text.get('1.0', tk.END).strip(), dialog))
+
+
+    def _save_honorario(self, honorario_id, case_id, descripcion, monto_str, fecha_str, estado, tipo, notas, dialog):
         """Guardar honorario"""
         if not descripcion.strip():
-            messagebox.showwarning("Campo Requerido", "La descripción es obligatoria.")
+            messagebox.showwarning("Campo Requerido", "La descripción es obligatoria.", parent=dialog)
+            return
+        if not fecha_str.strip():
+            messagebox.showwarning("Campo Requerido", "La fecha es obligatoria.", parent=dialog)
+            return
+
+        try: # Validar formato de fecha
+            datetime.datetime.strptime(fecha_str, "%Y-%m-%d")
+        except ValueError:
+            messagebox.showwarning("Formato Incorrecto", "La fecha debe estar en formato YYYY-MM-DD.", parent=dialog)
             return
 
         try:
-            monto_float = float(monto) if monto else 0.0
+            monto_float = float(monto_str) if monto_str.strip() else 0.0
         except ValueError:
-            messagebox.showwarning("Monto Inválido", "Ingrese un monto válido.")
+            messagebox.showwarning("Monto Inválido", "Ingrese un monto numérico válido.", parent=dialog)
             return
 
         try:
             if honorario_id:
-                self.db_crm.update_honorario(honorario_id, case_id, descripcion, monto_float, fecha, estado, tipo)
+                self.db_crm.update_honorario(honorario_id, case_id, descripcion, monto_float, fecha_str, estado, tipo, notas)
+                messagebox.showinfo("Éxito", "Honorario actualizado correctamente.", parent=self.app_controller.root)
             else:
-                self.db_crm.add_honorario(case_id, descripcion, monto_float, fecha, estado, tipo)
+                self.db_crm.add_honorario(case_id, descripcion, monto_float, fecha_str, estado, tipo, notas)
+                messagebox.showinfo("Éxito", "Honorario agregado correctamente.", parent=self.app_controller.root)
             
             dialog.destroy()
             self._load_honorarios(case_id)
-            self._update_resumen(case_id)
-            messagebox.showinfo("Éxito", "Honorario guardado correctamente.")
+            self._update_resumen(case_id) # Asegurarse que el resumen se actualice
         except Exception as e:
-            messagebox.showerror("Error", f"Error al guardar honorario: {e}")
+            messagebox.showerror("Error", f"Error al guardar honorario: {e}", parent=dialog)
 
-    def edit_selected_honorario(self):
-        """Editar honorario seleccionado"""
-        # Implementación simplificada por espacio
-        messagebox.showinfo("Funcionalidad", "Edición de honorario - Implementar según necesidades específicas")
+    def _edit_selected_honorario_wrapper(self, event=None): # Añadido event=None para doble clic
+        selected_items = self.honorarios_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Sin Selección", "Seleccione un honorario para editar.", parent=self.app_controller.root)
+            return
+        honorario_id_str = self.honorarios_tree.item(selected_items[0], 'values')[0]
+        try:
+            honorario_id = int(honorario_id_str)
+            self.open_honorario_dialog(honorario_id=honorario_id)
+        except ValueError:
+            messagebox.showerror("Error", "ID de honorario inválido.", parent=self.app_controller.root)
+
 
     def delete_selected_honorario(self):
         """Eliminar honorario seleccionado"""
-        # Implementación simplificada por espacio
-        messagebox.showinfo("Funcionalidad", "Eliminación de honorario - Implementar según necesidades específicas")
+        selected_items = self.honorarios_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Sin Selección", "Seleccione un honorario para eliminar.", parent=self.app_controller.root)
+            return
+
+        honorario_id_str = self.honorarios_tree.item(selected_items[0], 'values')[0]
+        honorario_desc = self.honorarios_tree.item(selected_items[0], 'values')[1]
+
+        if messagebox.askyesno("Confirmar Eliminación",
+                               f"¿Está seguro de que desea eliminar el honorario:\n'{honorario_desc}'?",
+                               parent=self.app_controller.root):
+            try:
+                honorario_id = int(honorario_id_str)
+                if self.db_crm.delete_honorario(honorario_id):
+                    messagebox.showinfo("Éxito", "Honorario eliminado correctamente.", parent=self.app_controller.root)
+                    self._load_honorarios(self.current_case['id'])
+                    self._update_resumen(self.current_case['id'])
+                else:
+                    messagebox.showerror("Error", "No se pudo eliminar el honorario.", parent=self.app_controller.root)
+            except ValueError:
+                messagebox.showerror("Error", "ID de honorario inválido.", parent=self.app_controller.root)
+            except Exception as e:
+                 messagebox.showerror("Error", f"Error al eliminar honorario: {e}", parent=self.app_controller.root)
+
 
     # --- Métodos de Gastos ---
+
+    def open_gasto_dialog(self, gasto_id=None):
+        """Abrir diálogo para agregar o editar un gasto."""
+        if not self.current_case:
+            messagebox.showwarning("Sin Caso", "Seleccione un caso para gestionar sus gastos.", parent=self.app_controller.root)
+            return
+
+        dialog = tk.Toplevel(self.app_controller.root)
+        dialog.title("Nuevo Gasto" if not gasto_id else "Editar Gasto")
+        dialog.transient(self.app_controller.root)
+        dialog.grab_set()
+        dialog.geometry("450x450") # Ajustar tamaño según necesidad
+
+        main_frame = ttk.Frame(dialog, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Variables
+        descripcion_var = tk.StringVar()
+        monto_var = tk.StringVar()
+        fecha_var = tk.StringVar(value=datetime.date.today().strftime("%Y-%m-%d"))
+        categoria_var = tk.StringVar(value="General")
+        reembolsable_var = tk.BooleanVar(value=True)
+        notas_var = tk.StringVar()
+        comprobante_var = tk.StringVar()
+
+        gasto_data = None
+        if gasto_id:
+            gasto_data = self.db_crm.get_gasto_by_id(gasto_id) # Necesitas esta función en crm_database.py
+            if gasto_data:
+                descripcion_var.set(gasto_data.get('descripcion', ''))
+                monto_var.set(str(gasto_data.get('monto', '0.0')))
+                fecha_var.set(gasto_data.get('fecha', datetime.date.today().strftime("%Y-%m-%d")))
+                categoria_var.set(gasto_data.get('categoria', 'General'))
+                reembolsable_var.set(bool(gasto_data.get('reembolsable', True)))
+                notas_var.set(gasto_data.get('notas', ''))
+                comprobante_var.set(gasto_data.get('comprobante_path', ''))
+            else:
+                messagebox.showerror("Error", "No se pudo cargar el gasto para editar.", parent=dialog)
+                dialog.destroy()
+                return
+
+        # Formulario
+        row = 0
+        ttk.Label(main_frame, text="Descripción:").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Entry(main_frame, textvariable=descripcion_var, width=40).grid(row=row, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=5)
+        row += 1
+
+        ttk.Label(main_frame, text="Monto:").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Entry(main_frame, textvariable=monto_var, width=15).grid(row=row, column=1, columnspan=2, sticky=tk.W, pady=2, padx=5)
+        row += 1
+
+        ttk.Label(main_frame, text="Fecha (YYYY-MM-DD):").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Entry(main_frame, textvariable=fecha_var, width=15).grid(row=row, column=1, columnspan=2, sticky=tk.W, pady=2, padx=5)
+        row += 1
+
+        ttk.Label(main_frame, text="Categoría:").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Combobox(main_frame, textvariable=categoria_var,
+                     values=["General", "Viáticos", "Copias", "Tasas Judiciales", "Comunicaciones", "Otros"],
+                     state="readonly", width=25).grid(row=row, column=1, columnspan=2, sticky=tk.W, pady=2, padx=5)
+        row += 1
+
+        ttk.Checkbutton(main_frame, text="Reembolsable", variable=reembolsable_var).grid(row=row, column=1, columnspan=2, sticky=tk.W, pady=2, padx=5)
+        row += 1
+
+        ttk.Label(main_frame, text="Comprobante:").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        comprobante_entry = ttk.Entry(main_frame, textvariable=comprobante_var, width=30)
+        comprobante_entry.grid(row=row, column=1, sticky=tk.EW, pady=2, padx=5)
+        ttk.Button(main_frame, text="Buscar...", command=lambda: self._browse_comprobante(comprobante_var)).grid(row=row, column=2, sticky=tk.W, pady=2, padx=2)
+        row += 1
+
+        ttk.Label(main_frame, text="Notas:").grid(row=row, column=0, sticky=tk.NW, pady=2, padx=5)
+        notas_gasto_text = tk.Text(main_frame, height=4, width=30, wrap=tk.WORD)
+        notas_gasto_text.grid(row=row, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=5)
+        if gasto_data:
+            notas_gasto_text.insert('1.0', notas_var.get())
+        row += 1
+
+        main_frame.columnconfigure(1, weight=1)
+
+        buttons_frame = ttk.Frame(main_frame)
+        buttons_frame.grid(row=row, column=0, columnspan=3, pady=15, sticky=tk.E)
+
+        ttk.Button(buttons_frame, text="Guardar",
+                  command=lambda: self._save_gasto(gasto_id, self.current_case['id'],
+                                                  descripcion_var.get(), monto_var.get(),
+                                                  fecha_var.get(), categoria_var.get(),
+                                                  reembolsable_var.get(),
+                                                  notas_gasto_text.get('1.0', tk.END).strip(),
+                                                  comprobante_var.get(), dialog)).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(buttons_frame, text="Cancelar", command=dialog.destroy).pack(side=tk.LEFT)
+
+        dialog.bind("<Return>", lambda event: self._save_gasto(gasto_id, self.current_case['id'],
+                                                  descripcion_var.get(), monto_var.get(),
+                                                  fecha_var.get(), categoria_var.get(),
+                                                  reembolsable_var.get(),
+                                                  notas_gasto_text.get('1.0', tk.END).strip(),
+                                                  comprobante_var.get(), dialog))
+
+    def _browse_comprobante(self, path_var):
+        from tkinter import filedialog
+        filepath = filedialog.askopenfilename(title="Seleccionar archivo de comprobante")
+        if filepath:
+            path_var.set(filepath)
+
+    def _save_gasto(self, gasto_id, case_id, descripcion, monto_str, fecha_str, categoria, reembolsable, notas, comprobante_path, dialog):
+        if not descripcion.strip():
+            messagebox.showwarning("Campo Requerido", "La descripción es obligatoria.", parent=dialog)
+            return
+        if not fecha_str.strip():
+            messagebox.showwarning("Campo Requerido", "La fecha es obligatoria.", parent=dialog)
+            return
+
+        try:
+            datetime.datetime.strptime(fecha_str, "%Y-%m-%d")
+        except ValueError:
+            messagebox.showwarning("Formato Incorrecto", "La fecha debe estar en formato YYYY-MM-DD.", parent=dialog)
+            return
+
+        try:
+            monto_float = float(monto_str) if monto_str.strip() else 0.0
+        except ValueError:
+            messagebox.showwarning("Monto Inválido", "Ingrese un monto numérico válido.", parent=dialog)
+            return
+
+        try:
+            if gasto_id:
+                self.db_crm.update_gasto(gasto_id, case_id, descripcion, monto_float, fecha_str, categoria, reembolsable, notas, comprobante_path)
+                messagebox.showinfo("Éxito", "Gasto actualizado correctamente.", parent=self.app_controller.root)
+            else:
+                self.db_crm.add_gasto(case_id, descripcion, monto_float, fecha_str, categoria, reembolsable, notas, comprobante_path)
+                messagebox.showinfo("Éxito", "Gasto agregado correctamente.", parent=self.app_controller.root)
+
+            dialog.destroy()
+            self._load_gastos(case_id)
+            self._update_resumen(case_id)
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al guardar gasto: {e}", parent=dialog)
+
 
     def _load_gastos(self, case_id):
         """Cargar gastos del caso"""
@@ -542,6 +853,173 @@ class FinancieroTab(ttk.Frame):
         messagebox.showinfo("Funcionalidad", "Eliminación de gasto - Implementar según necesidades específicas")
 
     # --- Métodos de Facturación ---
+    def open_factura_dialog(self, factura_id=None):
+        """Abrir diálogo para agregar o editar una factura."""
+        if not self.current_case:
+            messagebox.showwarning("Sin Caso", "Seleccione un caso para gestionar sus facturas.", parent=self.app_controller.root)
+            return
+
+        dialog = tk.Toplevel(self.app_controller.root)
+        dialog.title("Nueva Factura" if not factura_id else "Editar Factura")
+        dialog.transient(self.app_controller.root)
+        dialog.grab_set()
+        dialog.geometry("450x450") # Ajustar según necesidad
+
+        main_frame = ttk.Frame(dialog, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Variables
+        numero_var = tk.StringVar()
+        fecha_var = tk.StringVar(value=datetime.date.today().strftime("%Y-%m-%d"))
+        monto_var = tk.StringVar()
+        fecha_venc_var = tk.StringVar()
+        estado_var = tk.StringVar(value="Pendiente")
+        descripcion_var = tk.StringVar()
+        archivo_path_var = tk.StringVar()
+        # Nuevas para edición de pago
+        fecha_pago_var = tk.StringVar()
+        metodo_pago_var = tk.StringVar()
+
+
+        factura_data = None
+        if factura_id:
+            factura_data = self.db_crm.get_factura_by_id(factura_id) # Necesitas get_factura_by_id
+            if factura_data:
+                numero_var.set(factura_data.get('numero', ''))
+                fecha_var.set(factura_data.get('fecha', datetime.date.today().strftime("%Y-%m-%d")))
+                monto_var.set(str(factura_data.get('monto', '0.0')))
+                fecha_venc_var.set(factura_data.get('fecha_vencimiento', ''))
+                estado_var.set(factura_data.get('estado', 'Pendiente'))
+                descripcion_var.set(factura_data.get('descripcion', ''))
+                archivo_path_var.set(factura_data.get('archivo_path', ''))
+                fecha_pago_var.set(factura_data.get('fecha_pago', ''))
+                metodo_pago_var.set(factura_data.get('metodo_pago', ''))
+            else:
+                messagebox.showerror("Error", "No se pudo cargar la factura para editar.", parent=dialog)
+                dialog.destroy()
+                return
+
+        # Formulario
+        row = 0
+        ttk.Label(main_frame, text="Número Factura:").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Entry(main_frame, textvariable=numero_var, width=30).grid(row=row, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=5)
+        row += 1
+
+        ttk.Label(main_frame, text="Fecha Emisión (YYYY-MM-DD):").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Entry(main_frame, textvariable=fecha_var, width=15).grid(row=row, column=1, columnspan=2, sticky=tk.W, pady=2, padx=5)
+        row += 1
+
+        ttk.Label(main_frame, text="Monto:").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Entry(main_frame, textvariable=monto_var, width=15).grid(row=row, column=1, columnspan=2, sticky=tk.W, pady=2, padx=5)
+        row += 1
+
+        ttk.Label(main_frame, text="Fecha Vencimiento (YYYY-MM-DD):").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Entry(main_frame, textvariable=fecha_venc_var, width=15).grid(row=row, column=1, columnspan=2, sticky=tk.W, pady=2, padx=5)
+        row += 1
+
+        ttk.Label(main_frame, text="Estado:").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Combobox(main_frame, textvariable=estado_var,
+                     values=["Pendiente", "Pagada", "Vencida", "Cancelada", "Parcialmente Pagada"],
+                     state="readonly", width=25).grid(row=row, column=1, columnspan=2, sticky=tk.W, pady=2, padx=5)
+        row += 1
+
+        ttk.Label(main_frame, text="Descripción:").grid(row=row, column=0, sticky=tk.NW, pady=2, padx=5)
+        desc_fact_text = tk.Text(main_frame, height=3, width=30, wrap=tk.WORD)
+        desc_fact_text.grid(row=row, column=1, columnspan=2, sticky=tk.EW, pady=2, padx=5)
+        if factura_data:
+            desc_fact_text.insert('1.0', descripcion_var.get())
+        row += 1
+
+        ttk.Label(main_frame, text="Archivo Factura:").grid(row=row, column=0, sticky=tk.W, pady=2, padx=5)
+        archivo_entry = ttk.Entry(main_frame, textvariable=archivo_path_var, width=30)
+        archivo_entry.grid(row=row, column=1, sticky=tk.EW, pady=2, padx=5)
+        ttk.Button(main_frame, text="Buscar...", command=lambda: self._browse_comprobante(archivo_path_var)).grid(row=row, column=2, sticky=tk.W, pady=2, padx=2)
+        row += 1
+
+        # Campos para registrar/editar pago
+        pago_frame = ttk.LabelFrame(main_frame, text="Información de Pago", padding="5")
+        pago_frame.grid(row=row, column=0, columnspan=3, sticky=tk.EW, pady=10)
+
+        ttk.Label(pago_frame, text="Fecha Pago (YYYY-MM-DD):").grid(row=0, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Entry(pago_frame, textvariable=fecha_pago_var, width=15).grid(row=0, column=1, sticky=tk.W, pady=2, padx=5)
+
+        ttk.Label(pago_frame, text="Método de Pago:").grid(row=1, column=0, sticky=tk.W, pady=2, padx=5)
+        ttk.Combobox(pago_frame, textvariable=metodo_pago_var,
+                     values=["Efectivo", "Transferencia", "Cheque", "Tarjeta", "Otro"],
+                     width=25).grid(row=1, column=1, sticky=tk.W, pady=2, padx=5)
+        row +=1
+
+
+        main_frame.columnconfigure(1, weight=1)
+
+        buttons_frame = ttk.Frame(main_frame)
+        buttons_frame.grid(row=row, column=0, columnspan=3, pady=15, sticky=tk.E)
+
+        ttk.Button(buttons_frame, text="Guardar",
+                  command=lambda: self._save_factura(
+                      factura_id, self.current_case['id'], numero_var.get(), fecha_var.get(),
+                      monto_var.get(), fecha_venc_var.get(), estado_var.get(),
+                      desc_fact_text.get('1.0', tk.END).strip(), archivo_path_var.get(),
+                      fecha_pago_var.get(), metodo_pago_var.get(), dialog
+                  )).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(buttons_frame, text="Cancelar", command=dialog.destroy).pack(side=tk.LEFT)
+
+        dialog.bind("<Return>", lambda event: self._save_factura(
+                      factura_id, self.current_case['id'], numero_var.get(), fecha_var.get(),
+                      monto_var.get(), fecha_venc_var.get(), estado_var.get(),
+                      desc_fact_text.get('1.0', tk.END).strip(), archivo_path_var.get(),
+                      fecha_pago_var.get(), metodo_pago_var.get(), dialog
+                  ))
+
+    def _save_factura(self, factura_id, case_id, numero, fecha_str, monto_str, fecha_venc_str, estado, descripcion, archivo_path, fecha_pago_str, metodo_pago, dialog):
+        if not numero.strip():
+            messagebox.showwarning("Campo Requerido", "El número de factura es obligatorio.", parent=dialog)
+            return
+        if not fecha_str.strip():
+            messagebox.showwarning("Campo Requerido", "La fecha de emisión es obligatoria.", parent=dialog)
+            return
+
+        try: datetime.datetime.strptime(fecha_str, "%Y-%m-%d")
+        except ValueError:
+            messagebox.showwarning("Formato Incorrecto", "La fecha de emisión debe estar en formato YYYY-MM-DD.", parent=dialog)
+            return
+
+        if fecha_venc_str.strip():
+            try: datetime.datetime.strptime(fecha_venc_str, "%Y-%m-%d")
+            except ValueError:
+                messagebox.showwarning("Formato Incorrecto", "La fecha de vencimiento debe estar en formato YYYY-MM-DD (o vacía).", parent=dialog)
+                return
+        else:
+            fecha_venc_str = None # Guardar como NULL si está vacío
+
+        if fecha_pago_str.strip():
+            try: datetime.datetime.strptime(fecha_pago_str, "%Y-%m-%d")
+            except ValueError:
+                messagebox.showwarning("Formato Incorrecto", "La fecha de pago debe estar en formato YYYY-MM-DD (o vacía).", parent=dialog)
+                return
+        else:
+            fecha_pago_str = None
+
+        try:
+            monto_float = float(monto_str) if monto_str.strip() else 0.0
+        except ValueError:
+            messagebox.showwarning("Monto Inválido", "Ingrese un monto numérico válido.", parent=dialog)
+            return
+
+        try:
+            if factura_id:
+                self.db_crm.update_factura(factura_id, case_id, numero, fecha_str, monto_float, fecha_venc_str, estado, descripcion, archivo_path, fecha_pago_str, metodo_pago)
+                messagebox.showinfo("Éxito", "Factura actualizada correctamente.", parent=self.app_controller.root)
+            else:
+                self.db_crm.add_factura(case_id, numero, fecha_str, monto_float, fecha_venc_str, descripcion, estado, archivo_path, fecha_pago_str, metodo_pago)
+                messagebox.showinfo("Éxito", "Factura agregada correctamente.", parent=self.app_controller.root)
+
+            dialog.destroy()
+            self._load_facturas(case_id)
+            self._update_resumen(case_id)
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al guardar factura: {e}", parent=dialog)
+
 
     def _load_facturas(self, case_id):
         """Cargar facturas del caso"""

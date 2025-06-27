@@ -346,6 +346,11 @@ def create_tables():
             #except sqlite3.OperationalError:
             #    pass  # La columna ya existe
             # --- FIN ACTUALIZACIÓN ETIQUETAS ---
+
+            # The 'etiquetas' TEXT columns in 'clientes' and 'casos' tables are part of an older,
+            # deprecated tagging system. The new, preferred system uses the 'etiquetas',
+            # 'cliente_etiquetas', and 'caso_etiquetas' tables for a relational approach.
+            # New development should use the relational system.
             try:
                 cursor.execute('ALTER TABLE clientes ADD COLUMN etiquetas TEXT;')
             except sqlite3.OperationalError:
@@ -379,6 +384,21 @@ def get_audiencias_by_caso_id(caso_id):
             close_db(conn)
     return audiencias
 
+def get_audiencias_by_caso_id(caso_id):
+    """ Obtiene todas las audiencias para un caso específico. """
+    conn = connect_db()
+    audiencias = []
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM audiencias WHERE caso_id = ? ORDER BY fecha DESC, hora DESC", (caso_id,))
+            rows = cursor.fetchall()
+            audiencias = [dict(row) for row in rows]
+        except sqlite3.Error as e:
+            print(f"Error al obtener audiencias para el caso ID {caso_id}: {e}")
+        finally:
+            close_db(conn)
+    return audiencias
 
 # --- Funciones CRUD para Clientes (sin cambios) ---
 
@@ -1667,7 +1687,59 @@ def delete_honorario(honorario_id):
             close_db(conn)
     return success
 
+def get_honorario_by_id(honorario_id):
+    """Obtener un honorario específico por su ID."""
+    conn = connect_db()
+    honorario_data = None
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM honorarios WHERE id = ?", (honorario_id,))
+            row = cursor.fetchone()
+            if row:
+                honorario_data = dict(row)
+        except sqlite3.Error as e:
+            print(f"Error al obtener honorario por ID {honorario_id}: {e}")
+        finally:
+            close_db(conn)
+    return honorario_data
+
 # === GASTOS ===
+def get_gasto_by_id(gasto_id):
+    """Obtener un gasto específico por su ID."""
+    conn = connect_db()
+    gasto_data = None
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM gastos WHERE id = ?", (gasto_id,))
+            row = cursor.fetchone()
+            if row:
+                gasto_data = dict(row)
+        except sqlite3.Error as e:
+            print(f"Error al obtener gasto por ID {gasto_id}: {e}")
+        finally:
+            close_db(conn)
+    return gasto_data
+
+# === FACTURAS === (get_factura_by_id added here for logical grouping)
+def get_factura_by_id(factura_id):
+    """Obtener una factura específica por su ID."""
+    conn = connect_db()
+    factura_data = None
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM facturas WHERE id = ?", (factura_id,))
+            row = cursor.fetchone()
+            if row:
+                factura_data = dict(row)
+        except sqlite3.Error as e:
+            print(f"Error al obtener factura por ID {factura_id}: {e}")
+        finally:
+            close_db(conn)
+    return factura_data
+
 def add_gasto(caso_id, descripcion, monto, fecha, categoria="General", reembolsable=True, notas="", comprobante_path=""):
     """Agregar un nuevo gasto"""
     conn = connect_db()
@@ -1747,7 +1819,7 @@ def delete_gasto(gasto_id):
     return success
 
 # === FACTURAS ===
-def add_factura(caso_id, numero, fecha, monto, fecha_vencimiento=None, descripcion="", estado="Pendiente"):
+def add_factura(caso_id, numero, fecha_str, monto, fecha_venc_str=None, descripcion="", estado="Pendiente", archivo_path="", fecha_pago_str=None, metodo_pago=""):
     """Agregar una nueva factura"""
     conn = connect_db()
     success = False
@@ -1755,9 +1827,9 @@ def add_factura(caso_id, numero, fecha, monto, fecha_vencimiento=None, descripci
         try:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO facturas (caso_id, numero, fecha, fecha_vencimiento, monto, estado, descripcion, fecha_creacion)
-                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-            ''', (caso_id, numero, fecha, fecha_vencimiento, monto, estado, descripcion))
+                INSERT INTO facturas (caso_id, numero, fecha, monto, fecha_vencimiento, estado, descripcion, archivo_path, fecha_pago, metodo_pago, fecha_creacion)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ''', (case_id, numero, fecha_str, monto, fecha_venc_str, estado, descripcion, archivo_path, fecha_pago_str, metodo_pago))
             conn.commit()
             success = True
         except sqlite3.Error as e:
@@ -1787,7 +1859,7 @@ def get_facturas_by_case(caso_id):
             close_db(conn)
     return facturas
 
-def update_factura(factura_id, caso_id, numero, fecha, monto, fecha_vencimiento, estado, descripcion=""):
+def update_factura(factura_id, case_id, numero, fecha_str, monto, fecha_venc_str, estado, descripcion="", archivo_path="", fecha_pago_str=None, metodo_pago=""):
     """Actualizar una factura existente"""
     conn = connect_db()
     success = False
@@ -1796,11 +1868,11 @@ def update_factura(factura_id, caso_id, numero, fecha, monto, fecha_vencimiento,
             cursor = conn.cursor()
             cursor.execute('''
                 UPDATE facturas 
-                SET caso_id = ?, numero = ?, fecha = ?, fecha_vencimiento = ?, monto = ?, estado = ?, descripcion = ?
+                SET caso_id = ?, numero = ?, fecha = ?, monto = ?, fecha_vencimiento = ?, estado = ?, descripcion = ?, archivo_path = ?, fecha_pago = ?, metodo_pago = ?
                 WHERE id = ?
-            ''', (caso_id, numero, fecha, fecha_vencimiento, monto, estado, descripcion, factura_id))
+            ''', (case_id, numero, fecha_str, monto, fecha_venc_str, estado, descripcion, archivo_path, fecha_pago_str, metodo_pago, factura_id))
             conn.commit()
-            success = True
+            success = cursor.rowcount > 0
         except sqlite3.Error as e:
             print(f"Error al actualizar factura: {e}")
             conn.rollback()
@@ -1928,40 +2000,41 @@ def delete_etiqueta(etiqueta_id):
     return success
 
 # === FUNCIONES EXTENDIDAS PARA CLIENTES Y CASOS (ETIQUETAS COMO TEXTO) ===
-'''def update_client_etiquetas(client_id, etiquetas_str):
-    """Actualizar etiquetas de cliente como texto"""
-    conn = connect_db()
-    success = False
-    if conn:
-        try:
-            cursor = conn.cursor()
-            cursor.execute('UPDATE clientes SET etiquetas = ? WHERE id = ?', (etiquetas_str, client_id))
-            conn.commit()
-            success = True
-        except sqlite3.Error as e:
-            print(f"Error al actualizar etiquetas del cliente: {e}")
-            conn.rollback()
-        finally:
-            close_db(conn)
-    return success
+# These functions are deprecated as we move to the new relational tag system.
+# '''def update_client_etiquetas(client_id, etiquetas_str):
+#     """Actualizar etiquetas de cliente como texto"""
+#     conn = connect_db()
+#     success = False
+#     if conn:
+#         try:
+#             cursor = conn.cursor()
+#             cursor.execute('UPDATE clientes SET etiquetas = ? WHERE id = ?', (etiquetas_str, client_id))
+#             conn.commit()
+#             success = True
+#         except sqlite3.Error as e:
+#             print(f"Error al actualizar etiquetas del cliente: {e}")
+#             conn.rollback()
+#         finally:
+#             close_db(conn)
+#     return success
 
-def update_case_etiquetas(case_id, etiquetas_str):
-    """Actualizar etiquetas de caso como texto"""
-    conn = connect_db()
-    success = False
-    if conn:
-        try:
-            cursor = conn.cursor()
-            cursor.execute('UPDATE casos SET etiquetas = ? WHERE id = ?', (etiquetas_str, case_id))
-            conn.commit()
-            success = True
-        except sqlite3.Error as e:
-            print(f"Error al actualizar etiquetas del caso: {e}")
-            conn.rollback()
-        finally:
-            close_db(conn)
-    return success
-'''
+# def update_case_etiquetas(case_id, etiquetas_str):
+#     """Actualizar etiquetas de caso como texto"""
+#     conn = connect_db()
+#     success = False
+#     if conn:
+#         try:
+#             cursor = conn.cursor()
+#             cursor.execute('UPDATE casos SET etiquetas = ? WHERE id = ?', (etiquetas_str, case_id))
+#             conn.commit()
+#             success = True
+#         except sqlite3.Error as e:
+#             print(f"Error al actualizar etiquetas del caso: {e}")
+#             conn.rollback()
+#         finally:
+#             close_db(conn)
+#     return success
+# '''
 
 def get_all_cases():
     """Obtener todos los casos (para el módulo de etiquetas)"""

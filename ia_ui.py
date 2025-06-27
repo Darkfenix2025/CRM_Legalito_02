@@ -263,11 +263,34 @@ class IAAsistenteUI:
 
     def _guardar_interaccion_ia_como_actividad(self, caso_id, tipo_consulta, consulta, respuesta_ia):
         """Guardar interacción con IA como actividad de seguimiento"""
+        if not caso_id:
+            print("Advertencia: No se proporcionó caso_id para guardar actividad de IA.")
+            return
         try:
-            descripcion = f"{tipo_consulta}: {consulta}\nRespuesta: {respuesta_ia}"
-            self.db_crm.add_actividad(caso_id, "Consulta IA", descripcion)
+            # Formatear la descripción completa de la interacción
+            descripcion_completa = f"Tipo de Consulta IA: {tipo_consulta}\n\n"
+            if consulta: # Si hay una consulta específica (puede no haberla si es solo una reformulación)
+                 descripcion_completa += f"Consulta/Texto Original:\n{consulta}\n\n"
+            descripcion_completa += f"Respuesta/Resultado de IA:\n{respuesta_ia}"
+
+            fecha_hora_actual = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Usar add_actividad_caso con todos sus parámetros requeridos
+            self.db_crm.add_actividad_caso(
+                caso_id=caso_id,
+                fecha_hora=fecha_hora_actual,
+                tipo_actividad="Asistencia IA", # Un tipo de actividad genérico para IA
+                descripcion=descripcion_completa,
+                # creado_por y referencia_documento pueden ser None si no aplican aquí
+                creado_por="Sistema IA",
+                referencia_documento=None
+            )
+            print(f"Actividad de IA guardada para caso ID {caso_id}.")
         except Exception as e:
-            print(f"Error al guardar actividad de IA: {e}")
+            print(f"Error al guardar actividad de IA para caso ID {caso_id}: {e}")
+            import traceback
+            traceback.print_exc()
+
 
     def open_sugerencia_caso_dialog(self, caso_actual=None):
         """Abrir diálogo para sugerencias de próximo paso (funcionalidad futura)"""

@@ -154,68 +154,70 @@ class EtiquetasTab(ttk.Frame):
         self.load_available_etiquetas()
 
     def load_etiquetas(self):
-        """Cargar todas las etiquetas en el TreeView"""
-        # Limpiar TreeView
+        """Cargar todas las etiquetas en el TreeView del panel izquierdo."""
         for item in self.etiquetas_tree.get_children():
             self.etiquetas_tree.delete(item)
 
         try:
-            etiquetas = self.db_crm.get_all_etiquetas()
-            for etiqueta in etiquetas:
-                # Contar usos de la etiqueta
-                usos = self._count_etiqueta_usage(etiqueta['nombre'])
-                
+            # Usar get_todas_las_etiquetas para obtener todos los detalles
+            etiquetas_data = self.db_crm.get_todas_las_etiquetas()
+            for etiqueta in etiquetas_data:
+                usos = self._count_etiqueta_usage(etiqueta['id_etiqueta'])
                 self.etiquetas_tree.insert('', 'end', values=(
-                    etiqueta['id'],
-                    etiqueta['nombre'],
-                    etiqueta['color'],
-                    etiqueta['tipo'],
+                    etiqueta['id_etiqueta'],
+                    etiqueta['nombre_etiqueta'],
+                    etiqueta.get('color', '#3498db'),
+                    etiqueta.get('tipo', 'general'),
                     usos
                 ))
         except Exception as e:
-            messagebox.showerror("Error", f"Error al cargar etiquetas: {e}")
+            messagebox.showerror("Error", f"Error al cargar etiquetas globales: {e}", parent=self)
 
-    def _count_etiqueta_usage(self, etiqueta_nombre):
-        """Contar cuántas veces se usa una etiqueta"""
+    def _count_etiqueta_usage(self, etiqueta_id):
+        """Contar cuántas veces se usa una etiqueta en clientes y casos usando las tablas de unión."""
+        count = 0
+        conn = None
         try:
-            count = 0
-            # Contar en clientes
-            clientes = self.db_crm.get_clients()
-            for cliente in clientes:
-                etiquetas_str = cliente.get('etiquetas', '')
-                if etiquetas_str and etiqueta_nombre in etiquetas_str.split(','):
-                    count += 1
-            
-            # Contar en casos
-            casos = self.db_crm.get_all_cases()
-            for caso in casos:
-                etiquetas_str = caso.get('etiquetas', '')
-                if etiquetas_str and etiqueta_nombre in etiquetas_str.split(','):
-                    count += 1
-                    
-            return count
-        except:
-            return 0
+            conn = self.db_crm.connect_db()
+            if conn:
+                cursor = conn.cursor()
+                # Contar en clientes
+                cursor.execute("SELECT COUNT(*) FROM cliente_etiquetas WHERE etiqueta_id = ?", (etiqueta_id,))
+                count += cursor.fetchone()[0]
+                # Contar en casos
+                cursor.execute("SELECT COUNT(*) FROM caso_etiquetas WHERE etiqueta_id = ?", (etiqueta_id,))
+                count += cursor.fetchone()[0]
+        except Exception as e:
+            print(f"Error al contar usos de etiqueta ID {etiqueta_id}: {e}")
+            return "Error" # O 0, o manejar de otra forma
+        finally:
+            if conn:
+                self.db_crm.close_db(conn)
+        return count
 
     def load_available_etiquetas(self):
-        """Cargar etiquetas disponibles en el Listbox"""
+        """Cargar etiquetas disponibles en el Listbox para aplicación."""
         self.available_listbox.delete(0, tk.END)
+        self.available_etiquetas_map = {} # Para mapear texto del listbox a id_etiqueta
         try:
-            etiquetas = self.db_crm.get_all_etiquetas()
-            for etiqueta in etiquetas:
-                display_text = f"{etiqueta['nombre']} ({etiqueta['tipo']}) - {etiqueta['color']}"
+            etiquetas_data = self.db_crm.get_todas_las_etiquetas()
+            for etiqueta in etiquetas_data:
+                # Usar nombre_etiqueta que es el normalizado (minúsculas)
+                display_text = f"{etiqueta['nombre_etiqueta']} ({etiqueta.get('tipo', 'Gral')}) - {etiqueta.get('color', '')}"
                 self.available_listbox.insert(tk.END, display_text)
+                self.available_etiquetas_map[display_text] = etiqueta['id_etiqueta']
         except Exception as e:
-            print(f"Error al cargar etiquetas disponibles: {e}")
+            print(f"Error al cargar etiquetas disponibles para aplicar: {e}")
+            messagebox.showerror("Error", f"Error al cargar etiquetas disponibles: {e}", parent=self)
+
 
     def on_entity_type_change(self, event):
-        """Manejar cambio de tipo de entidad"""
-        self.entities_tree.delete(*self.entities_tree.get_children())
-        self.disable_apply_buttons()
+        """Manejar cambio de tipo de entidad (cliente o caso)."""
+        self.entities_tree.delete(*self.entities_tree.get_children()) # Limpiar la lista de entidades
+        self.disable_apply_buttons() # Deshabilitar botones de aplicar/quitar
 
     def load_entities(self):
-        """Cargar entidades según el tipo seleccionado"""
-        # Limpiar TreeView
+        """Cargar entidades (clientes o casos) según el tipo seleccionado."""
         for item in self.entities_tree.get_children():
             self.entities_tree.delete(item)
 
@@ -223,37 +225,39 @@ class EtiquetasTab(ttk.Frame):
         
         try:
             if entity_type == "clientes":
-                entities = self.db_crm.get_clients()
+                entities = self.db_crm.get_clients() # Asume que esto devuelve una lista de dicts
                 for entity in entities:
+                    # Obtener etiquetas para este cliente usando el nuevo sistema
+                    etiquetas_cliente_objs = self.db_crm.get_etiquetas_de_cliente(entity['id'])
+                    nombres_etiquetas = [e['nombre_etiqueta'] for e in etiquetas_cliente_objs]
+                    etiquetas_display = ", ".join(nombres_etiquetas) if nombres_etiquetas else "Sin etiquetas"
+
                     self.entities_tree.insert('', 'end', values=(
                         entity['id'],
-                        entity.get('nombre', ''),
-                        entity.get('etiquetas', 'Sin etiquetas')
+                        entity.get('nombre', 'N/A'),
+                        etiquetas_display
                     ))
             elif entity_type == "casos":
-                entities = self.db_crm.get_all_cases()
+                entities = self.db_crm.get_all_cases() # Asume que esto devuelve una lista de dicts
                 for entity in entities:
-                    # Obtener nombre del cliente para mostrar más información
-                    cliente_nombre = "Cliente desconocido"
-                    if entity.get('cliente_id'):
-                        try:
-                            cliente = self.db_crm.get_client_by_id(entity['cliente_id'])
-                            if cliente:
-                                cliente_nombre = cliente.get('nombre', 'Sin nombre')
-                        except:
-                            pass
-                    
+                    cliente_nombre = entity.get('nombre_cliente', "Cliente desc.") # Asumiendo que get_all_cases hace el JOIN
                     display_name = f"{entity.get('caratula', 'Sin carátula')} ({cliente_nombre})"
+
+                    # Obtener etiquetas para este caso usando el nuevo sistema
+                    etiquetas_caso_objs = self.db_crm.get_etiquetas_de_caso(entity['id'])
+                    nombres_etiquetas = [e['nombre_etiqueta'] for e in etiquetas_caso_objs]
+                    etiquetas_display = ", ".join(nombres_etiquetas) if nombres_etiquetas else "Sin etiquetas"
+
                     self.entities_tree.insert('', 'end', values=(
                         entity['id'],
                         display_name,
-                        entity.get('etiquetas', 'Sin etiquetas')
+                        etiquetas_display
                     ))
         except Exception as e:
-            messagebox.showerror("Error", f"Error al cargar {entity_type}: {e}")
+            messagebox.showerror("Error", f"Error al cargar {entity_type}: {e}", parent=self)
 
     def on_etiqueta_select(self, event):
-        """Manejar selección de etiqueta"""
+        """Manejar selección de etiqueta en el TreeView de gestión."""
         selected_items = self.etiquetas_tree.selection()
         if selected_items:
             selected_item = selected_items[0]
@@ -441,56 +445,45 @@ class EtiquetasTab(ttk.Frame):
         # Obtener etiquetas seleccionadas
         selected_etiquetas_indices = self.available_listbox.curselection()
         if not selected_etiquetas_indices:
-            messagebox.showwarning("Sin Etiquetas", "Seleccione al menos una etiqueta para aplicar.")
+            messagebox.showwarning("Sin Etiquetas", "Seleccione al menos una etiqueta para aplicar.", parent=self)
             return
 
         try:
             entity_item = selected_entities[0]
-            entity_id = self.entities_tree.item(entity_item, 'values')[0]
+            entity_id_str = self.entities_tree.item(entity_item, 'values')[0]
+            entity_id = int(entity_id_str)
             entity_type = self.entity_type_var.get()
 
-            # Obtener nombres de etiquetas seleccionadas
-            etiquetas_to_add = []
-            etiquetas = self.db_crm.get_all_etiquetas()
+            # Obtener IDs de etiquetas seleccionadas del Listbox
+            etiqueta_ids_to_apply = []
             for index in selected_etiquetas_indices:
-                if index < len(etiquetas):
-                    etiquetas_to_add.append(etiquetas[index]['nombre'])
+                selected_display_text = self.available_listbox.get(index)
+                if selected_display_text in self.available_etiquetas_map:
+                    etiqueta_ids_to_apply.append(self.available_etiquetas_map[selected_display_text])
 
-            # Obtener etiquetas actuales de la entidad
-            if entity_type == "clientes":
-                entity_data = self.db_crm.get_client_by_id(entity_id)
-            else:  # casos
-                entity_data = self.db_crm.get_case_by_id(entity_id)
-
-            if not entity_data:
-                messagebox.showerror("Error", "No se pudo encontrar la entidad seleccionada.")
+            if not etiqueta_ids_to_apply:
+                messagebox.showwarning("Error", "No se pudieron identificar las etiquetas seleccionadas.", parent=self)
                 return
 
-            current_etiquetas = entity_data.get('etiquetas', '')
-            current_etiquetas_list = [tag.strip() for tag in current_etiquetas.split(',') if tag.strip()]
-
-            # Agregar nuevas etiquetas (evitar duplicados)
-            for etiqueta in etiquetas_to_add:
-                if etiqueta not in current_etiquetas_list:
-                    current_etiquetas_list.append(etiqueta)
-
-            # Actualizar entidad
-            new_etiquetas_str = ', '.join(current_etiquetas_list)
+            # Aplicar cada etiqueta
+            for tag_id in etiqueta_ids_to_apply:
+                if entity_type == "clientes":
+                    self.db_crm.asignar_etiqueta_a_cliente(entity_id, tag_id)
+                elif entity_type == "casos":
+                    self.db_crm.asignar_etiqueta_a_caso(entity_id, tag_id)
             
-            if entity_type == "clientes":
-                self.db_crm.update_client_etiquetas(entity_id, new_etiquetas_str)
-            else:  # casos
-                self.db_crm.update_case_etiquetas(entity_id, new_etiquetas_str)
-
-            messagebox.showinfo("Éxito", f"Etiquetas aplicadas correctamente a {entity_type[:-1]}.")
-            self.load_entities()  # Recargar para mostrar cambios
-            self.load_etiquetas()  # Recargar para actualizar contadores
+            messagebox.showinfo("Éxito", f"Etiquetas aplicadas correctamente a {entity_type[:-1]}.", parent=self)
+            self.load_entities()  # Recargar para mostrar cambios en la lista de entidades
+            self.load_etiquetas()  # Recargar para actualizar contadores de uso de etiquetas globales
             
+        except ValueError:
+            messagebox.showerror("Error", "ID de entidad inválido.", parent=self)
         except Exception as e:
-            messagebox.showerror("Error", f"Error al aplicar etiquetas: {e}")
+            messagebox.showerror("Error", f"Error al aplicar etiquetas: {e}", parent=self)
+
 
     def remove_selected_etiquetas(self):
-        """Quitar etiquetas seleccionadas de la entidad seleccionada"""
+        """Quitar etiquetas seleccionadas de la entidad seleccionada."""
         # Obtener entidad seleccionada
         selected_entities = self.entities_tree.selection()
         if not selected_entities:
@@ -500,56 +493,44 @@ class EtiquetasTab(ttk.Frame):
         # Obtener etiquetas seleccionadas
         selected_etiquetas_indices = self.available_listbox.curselection()
         if not selected_etiquetas_indices:
-            messagebox.showwarning("Sin Etiquetas", "Seleccione al menos una etiqueta para quitar.")
+            messagebox.showwarning("Sin Etiquetas", "Seleccione al menos una etiqueta para quitar.", parent=self)
             return
 
         try:
             entity_item = selected_entities[0]
-            entity_id = self.entities_tree.item(entity_item, 'values')[0]
+            entity_id_str = self.entities_tree.item(entity_item, 'values')[0]
+            entity_id = int(entity_id_str)
             entity_type = self.entity_type_var.get()
 
-            # Obtener nombres de etiquetas seleccionadas
-            etiquetas_to_remove = []
-            etiquetas = self.db_crm.get_all_etiquetas()
+            # Obtener IDs de etiquetas seleccionadas del Listbox
+            etiqueta_ids_to_remove = []
             for index in selected_etiquetas_indices:
-                if index < len(etiquetas):
-                    etiquetas_to_remove.append(etiquetas[index]['nombre'])
+                selected_display_text = self.available_listbox.get(index)
+                if selected_display_text in self.available_etiquetas_map:
+                    etiqueta_ids_to_remove.append(self.available_etiquetas_map[selected_display_text])
 
-            # Obtener etiquetas actuales de la entidad
-            if entity_type == "clientes":
-                entity_data = self.db_crm.get_client_by_id(entity_id)
-            else:  # casos
-                entity_data = self.db_crm.get_case_by_id(entity_id)
-
-            if not entity_data:
-                messagebox.showerror("Error", "No se pudo encontrar la entidad seleccionada.")
+            if not etiqueta_ids_to_remove:
+                messagebox.showwarning("Error", "No se pudieron identificar las etiquetas seleccionadas.", parent=self)
                 return
 
-            current_etiquetas = entity_data.get('etiquetas', '')
-            current_etiquetas_list = [tag.strip() for tag in current_etiquetas.split(',') if tag.strip()]
-
-            # Quitar etiquetas
-            for etiqueta in etiquetas_to_remove:
-                if etiqueta in current_etiquetas_list:
-                    current_etiquetas_list.remove(etiqueta)
-
-            # Actualizar entidad
-            new_etiquetas_str = ', '.join(current_etiquetas_list)
+            # Quitar cada etiqueta
+            for tag_id in etiqueta_ids_to_remove:
+                if entity_type == "clientes":
+                    self.db_crm.quitar_etiqueta_de_cliente(entity_id, tag_id)
+                elif entity_type == "casos":
+                    self.db_crm.quitar_etiqueta_de_caso(entity_id, tag_id)
             
-            if entity_type == "clientes":
-                self.db_crm.update_client_etiquetas(entity_id, new_etiquetas_str)
-            else:  # casos
-                self.db_crm.update_case_etiquetas(entity_id, new_etiquetas_str)
+            messagebox.showinfo("Éxito", f"Etiquetas quitadas correctamente de {entity_type[:-1]}.", parent=self)
+            self.load_entities()  # Recargar para mostrar cambios en la lista de entidades
+            self.load_etiquetas()  # Recargar para actualizar contadores de uso de etiquetas globales
 
-            messagebox.showinfo("Éxito", f"Etiquetas quitadas correctamente de {entity_type[:-1]}.")
-            self.load_entities()  # Recargar para mostrar cambios
-            self.load_etiquetas()  # Recargar para actualizar contadores
-            
+        except ValueError:
+            messagebox.showerror("Error", "ID de entidad inválido.", parent=self)
         except Exception as e:
-            messagebox.showerror("Error", f"Error al quitar etiquetas: {e}")
+            messagebox.showerror("Error", f"Error al quitar etiquetas: {e}", parent=self)
 
     def refresh_data(self):
-        """Refrescar los datos del módulo"""
+        """Refrescar los datos del módulo."""
         self.load_etiquetas()
         self.load_available_etiquetas()
         if hasattr(self, 'entities_tree') and self.entities_tree.get_children():

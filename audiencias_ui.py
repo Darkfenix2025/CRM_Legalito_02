@@ -54,7 +54,7 @@ class AudienciasTab(ttk.Frame):
         self.add_audiencia_btn.pack(fill=tk.X, padx=0, pady=0) # padx/pady dentro de add_aud_frame
 
         # CORRECCIÓN: Llamada a método no existente comentada. Implementar si es necesario.
-        # self.update_add_audiencia_button_state() 
+        self.update_add_audiencia_button_state() # Call it at init
 
         # --- Panel Derecho: Lista y Detalles ---
         right_panel = ttk.Frame(self)
@@ -157,13 +157,12 @@ class AudienciasTab(ttk.Frame):
         self.cargar_audiencias_fecha_actual()
         self.marcar_dias_audiencias_calendario() # Llamar después de cargar
 
-    # def update_add_audiencia_button_state(self):
-    #     # Implementar si es necesario, por ejemplo:
-    #     # if self.app_controller.selected_case:
-    #     #     self.add_audiencia_btn.config(state=tk.NORMAL)
-    #     # else:
-    #     #     self.add_audiencia_btn.config(state=tk.DISABLED) # O siempre NORMAL
-    #     pass
+    def update_add_audiencia_button_state(self):
+        """Actualiza el estado del botón 'Agregar Audiencia'."""
+        if hasattr(self.app_controller, 'selected_case') and self.app_controller.selected_case:
+            self.add_audiencia_btn.config(state=tk.NORMAL)
+        else:
+            self.add_audiencia_btn.config(state=tk.DISABLED)
 
 
     def cargar_audiencias_fecha_actual(self):
@@ -360,13 +359,17 @@ class AudienciasTab(ttk.Frame):
         if audiencia_id:
             #try:
             audiencia_data = self.db_crm.get_audiencia_by_id(audiencia_id)
+            audiencia_data = self.db_crm.get_audiencia_by_id(audiencia_id)
             if audiencia_data:
                 caso_id_var.set(str(audiencia_data.get('caso_id', '')))
-                # Obtenemos el nombre del caso
                 if audiencia_data.get('caso_id'):
                     caso = self.db_crm.get_case_by_id(audiencia_data['caso_id'])
                     if caso:
-                        caso_nombre_var.set(caso.get('caratula', 'ID no encontrado'))
+                        caso_nombre_var.set(caso.get('caratula', f"ID: {audiencia_data['caso_id']} (No encontrado)"))
+                    else:
+                        caso_nombre_var.set(f"ID: {audiencia_data['caso_id']} (No encontrado)")
+                else:
+                    caso_nombre_var.set("Ninguno asignado")
                     
                 fecha_var.set(audiencia_data.get('fecha', ''))
                 hora_var.set(audiencia_data.get('hora', ''))
@@ -374,25 +377,20 @@ class AudienciasTab(ttk.Frame):
                 initial_desc = audiencia_data.get('descripcion', '')
                 recordatorio_var.set(bool(audiencia_data.get('recordatorio_activo', False)))
                 minutos_var.set(str(audiencia_data.get('recordatorio_minutos', 30)))
-
             else:
                 messagebox.showerror("Error", "No se pudieron cargar los datos de la audiencia.", parent=dialog)
                 dialog.destroy()
                 return
-            #except Exception as e:
-            #    messagebox.showerror("Error", f"Error al cargar datos de la audiencia: {e}", parent=dialog)
-            #    dialog.destroy()
-            #    return
-        else:
+        else: # Nueva audiencia
             fecha_var.set(self.fecha_seleccionada_agenda if self.fecha_seleccionada_agenda else datetime.date.today().strftime("%Y-%m-%d"))
-            # Si hay un caso seleccionado en la app principal, proponerlo
             if self.app_controller.selected_case:
                 caso_id_var.set(str(self.app_controller.selected_case['id']))
-
-        caso_nombre_var.set(self.app_controller.selected_case.get('caratula', '')) # <-- PONER NOMBRE
+                caso_nombre_var.set(self.app_controller.selected_case.get('caratula', 'Caso seleccionado'))
+            else:
+                caso_nombre_var.set("Ninguno (Haga clic en Buscar)")
 
         row = 0
-# --- NUEVO WIDGET DE SOLO LECTURA PARA EL NOMBRE ---
+        # Mostrar nombre del caso (si está preseleccionado)
         ttk.Label(main_frame, text="Caso:").grid(row=row, column=0, sticky=tk.W, pady=5)
         ttk.Label(main_frame, textvariable=caso_nombre_var, foreground="blue", wraplength=350).grid(row=row, column=1, sticky=tk.EW, pady=5, padx=(10, 0))
         row += 1
@@ -473,20 +471,22 @@ class AudienciasTab(ttk.Frame):
             caso_id_input = simpledialog.askstring("Seleccionar Caso", 
                                                 "Ingrese el ID del caso:",
                                                 parent=parent_dialog)
-            if caso_id_input and caso_id_input.strip().isdigit():
-                caso_id_int = int(caso_id_input.strip())
-                caso = self.db_crm.get_case_by_id(caso_id_int)
-                if caso:
-                    caso_id_var.set(str(caso_id_int))
-                    caso_nombre_var.set(caso.get('caratula', 'N/A')) # <-- ACTUALIZAR NOMBRE
-                    messagebox.showinfo("Caso Seleccionado", f"Caso: {caso.get('caratula', 'N/A')}", parent=parent_dialog)
-                else:
-                    messagebox.showerror("Error", "Caso no encontrado.", parent=parent_dialog)
-            else:
-                messagebox.showerror("Error", "Caso no encontrado.", parent=parent_dialog)
+            # Esta es una implementación muy simple. Podrías crear un diálogo más complejo
+            # que muestre una lista de casos para seleccionar.
+
+            # --- MODIFIED TO USE SelectCaseDialog ---
+            dialog = SelectCaseDialog(parent_dialog, self.app_controller) # parent_dialog is the Audiencia Dialog
+            selected_info = dialog.selected_case_info # This will block until dialog is closed
+
+            if selected_info:
+                caso_id_var.set(str(selected_info['id']))
+                caso_nombre_var.set(selected_info['caratula'])
+                # No need for messagebox here, selection happens in the dialog
+            # If selected_info is None, it means cancel was pressed, so no change.
+            # --- END MODIFICATION ---
 
         except Exception as e:
-            messagebox.showerror("Error", f"Error al buscar caso: {e}", parent=parent_dialog)
+            messagebox.showerror("Error", f"Error al seleccionar caso: {e}", parent=parent_dialog)
 
 
     def guardar_audiencia(self, audiencia_id, caso_id_str, fecha_str, hora_str, link, desc, r_act, r_min_str, dialog):
@@ -730,3 +730,121 @@ class AudienciasTab(ttk.Frame):
             except:
                 return None
         return None
+
+class SelectCaseDialog(tk.Toplevel):
+    """
+    A dialog window for selecting a case from a filterable list.
+    Used when associating an audiencia with a case if one isn't already selected,
+    or if the user wishes to change the associated case.
+
+    Attributes:
+        selected_case_info (dict | None): After the dialog closes, this attribute
+                                          holds {'id': case_id, 'caratula': caratula}
+                                          if a case was selected, or None if canceled.
+    """
+    def __init__(self, parent, app_controller):
+        super().__init__(parent)
+        self.app_controller = app_controller
+        self.db_crm = self.app_controller.db_crm
+        self.selected_case_info = None # Will store {'id': case_id, 'caratula': caratula}
+
+        self.title("Seleccionar Caso")
+        self.transient(parent)
+        self.grab_set()
+        self.geometry("600x400")
+        self.resizable(True, True)
+
+        main_frame = ttk.Frame(self, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(1, weight=1) # Treeview row
+
+        # Search/Filter (Optional - Basic for now)
+        search_frame = ttk.Frame(main_frame)
+        search_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        ttk.Label(search_frame, text="Buscar Carátula:").pack(side=tk.LEFT, padx=(0,5))
+        self.search_var = tk.StringVar()
+        self.search_entry = ttk.Entry(search_frame, textvariable=self.search_var, width=40)
+        self.search_entry.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        self.search_entry.bind("<KeyRelease>", self._filter_cases)
+
+        # Treeview
+        tree_frame = ttk.Frame(main_frame)
+        tree_frame.grid(row=1, column=0, sticky="nsew")
+        tree_frame.columnconfigure(0, weight=1)
+        tree_frame.rowconfigure(0, weight=1)
+
+        cols = ('ID', 'Carátula', 'Cliente')
+        self.case_tree = ttk.Treeview(tree_frame, columns=cols, show='headings', selectmode='browse')
+        self.case_tree.heading('ID', text='ID')
+        self.case_tree.heading('Carátula', text='Carátula')
+        self.case_tree.heading('Cliente', text='Cliente')
+
+        self.case_tree.column('ID', width=50, stretch=tk.NO, anchor=tk.CENTER)
+        self.case_tree.column('Carátula', width=300, stretch=True)
+        self.case_tree.column('Cliente', width=200, stretch=True)
+
+        scrollbar_y = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.case_tree.yview)
+        self.case_tree.configure(yscrollcommand=scrollbar_y.set)
+        scrollbar_x = ttk.Scrollbar(tree_frame, orient=tk.HORIZONTAL, command=self.case_tree.xview)
+        self.case_tree.configure(xscrollcommand=scrollbar_x.set)
+
+        self.case_tree.grid(row=0, column=0, sticky="nsew")
+        scrollbar_y.grid(row=0, column=1, sticky="ns")
+        scrollbar_x.grid(row=1, column=0, columnspan=2, sticky="ew")
+
+        self.case_tree.bind("<Double-1>", self._on_select_button)
+
+
+        # Buttons
+        buttons_frame = ttk.Frame(main_frame)
+        buttons_frame.grid(row=2, column=0, sticky="e", pady=(10,0))
+
+        ttk.Button(buttons_frame, text="Seleccionar", command=self._on_select_button).pack(side=tk.LEFT, padx=5)
+        ttk.Button(buttons_frame, text="Cancelar", command=self._on_cancel_button).pack(side=tk.LEFT)
+
+        self._load_all_cases()
+        self.search_entry.focus_set()
+
+        # Make dialog modal
+        self.protocol("WM_DELETE_WINDOW", self._on_cancel_button)
+        self.wait_window(self) # Crucial for modal behavior
+
+    def _load_all_cases(self, filter_text=""):
+        for item in self.case_tree.get_children():
+            self.case_tree.delete(item)
+
+        try:
+            all_cases = self.db_crm.get_all_cases() # This already joins with client name
+            for case in all_cases:
+                caratula = case.get('caratula', '').lower()
+                cliente_nombre = case.get('nombre_cliente', '').lower()
+                if filter_text.lower() in caratula or filter_text.lower() in cliente_nombre:
+                    self.case_tree.insert('', 'end', iid=case['id'], values=(
+                        case['id'],
+                        case.get('caratula', 'N/A'),
+                        case.get('nombre_cliente', 'N/A')
+                    ))
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al cargar casos: {e}", parent=self)
+
+    def _filter_cases(self, event=None):
+        filter_text = self.search_var.get()
+        self._load_all_cases(filter_text)
+
+    def _on_select_button(self, event=None):
+        selected_items = self.case_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Sin Selección", "Por favor, seleccione un caso de la lista.", parent=self)
+            return
+
+        selected_iid = selected_items[0]
+        case_id = self.case_tree.item(selected_iid, 'values')[0]
+        caratula = self.case_tree.item(selected_iid, 'values')[1]
+
+        self.selected_case_info = {'id': case_id, 'caratula': caratula}
+        self.destroy()
+
+    def _on_cancel_button(self):
+        self.selected_case_info = None
+        self.destroy()

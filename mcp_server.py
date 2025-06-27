@@ -137,6 +137,11 @@ def reformular_hechos_api():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    # Basic health check, can be expanded (e.g., check model availability)
+    return jsonify({"status": "healthy", "message": "MCP Server is running."}), 200
+
 if __name__ == '__main__':
     # app.run(port=5000, debug=True) # Si usas el comando "flask run", esto no es necesario
                                    # Para ejecutar directamente con "python mcp_server.py", sí.

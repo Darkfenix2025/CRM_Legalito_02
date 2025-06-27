@@ -107,12 +107,16 @@ class CRMLegalAppRefactored:
             messagebox.showwarning("Error", "Se necesita un caso para gestionar sus actividades.")
             return
 
-        parent = parent_window if parent_window else self.root
-        dialog = tk.Toplevel(parent) # <-- MODIFICAR AQUÍ
-        dialog.transient(parent) # <-- AÑADIR/ASEGURAR ESTO
+        actual_dialog_parent = self.root # Default to main root window
+        if parent_window and parent_window.winfo_exists():
+            try:
+                # Get the Toplevel window that contains the parent_window (the tab)
+                actual_dialog_parent = parent_window.winfo_toplevel()
+            except tk.TclError:
+                pass # Fallback to self.root if error
         
-        #dialog = tk.Toplevel(self.root)
-        #dialog.transient(self.root)
+        dialog = tk.Toplevel(actual_dialog_parent)
+        dialog.transient(actual_dialog_parent)
         dialog.grab_set()
         dialog.resizable(False, False)
         dialog.title("Nueva Actividad" if not actividad_id else "Editar Actividad")
@@ -218,12 +222,15 @@ class CRMLegalAppRefactored:
             messagebox.showwarning("Error", "Se necesita un caso para gestionar sus partes.")
             return
         
-        parent = parent_window if parent_window else self.root
-        dialog = tk.Toplevel(parent) # <-- MODIFICAR AQUÍ
-        dialog.transient(parent) # <-- AÑADIR/ASEGURAR ESTO
+        actual_dialog_parent = self.root # Default to main root window
+        if parent_window and parent_window.winfo_exists():
+            try:
+                actual_dialog_parent = parent_window.winfo_toplevel()
+            except tk.TclError:
+                pass
         
-        #dialog = tk.Toplevel(self.root)
-        #dialog.transient(self.root)
+        dialog = tk.Toplevel(actual_dialog_parent)
+        dialog.transient(actual_dialog_parent)
         dialog.grab_set()
         dialog.resizable(False, False)
         dialog.title("Nueva Parte" if not parte_id else "Editar Parte")
@@ -311,15 +318,20 @@ class CRMLegalAppRefactored:
 
     def open_tarea_dialog(self, tarea_id=None, caso_id=None, parent_window=None):
         """Abre el diálogo para agregar o editar una tarea."""
-        parent = parent_window if parent_window else self.root
-        dialog = tk.Toplevel(parent) # <-- MODIFICAR AQUÍ
-        dialog.transient(parent) # <-- AÑADIR/ASEGURAR ESTO
 
-        if not caso_id and not tarea_id:
-            messagebox.showwarning("Error", "Se requiere un caso para crear una tarea.")
+        if not caso_id and not tarea_id: # If creating new, must have a case. If editing, tarea_id implies a case.
+            messagebox.showwarning("Error", "Se requiere un caso para crear o editar una tarea.")
             return
 
-        #dialog.transient(self.root)
+        actual_dialog_parent = self.root # Default to main root window
+        if parent_window and parent_window.winfo_exists():
+            try:
+                actual_dialog_parent = parent_window.winfo_toplevel()
+            except tk.TclError:
+                pass
+
+        dialog = tk.Toplevel(actual_dialog_parent)
+        dialog.transient(actual_dialog_parent)
         dialog.grab_set()
         dialog.resizable(False, False)
         dialog.title("Nueva Tarea" if not tarea_id else "Editar Tarea")
@@ -613,20 +625,35 @@ class CRMLegalAppRefactored:
         
         # Limpiar selección de caso ya que cambió el cliente
         self.selected_case = None
+        if hasattr(self, 'audiencias_module') and self.audiencias_module:
+            self.audiencias_module.update_add_audiencia_button_state()
+
 
     def on_client_deleted(self):
         """Manejar eliminación de cliente"""
         self.selected_client = None
         self.selected_case = None
         self.casos_module.clear_case_list()
+        if hasattr(self, 'audiencias_module') and self.audiencias_module:
+            self.audiencias_module.update_add_audiencia_button_state()
+
 
     def on_case_selected(self, case_data):
         """Manejar selección de caso desde el módulo de casos"""
         self.selected_case = case_data
+        if hasattr(self, 'audiencias_module') and self.audiencias_module:
+            self.audiencias_module.update_add_audiencia_button_state()
+
 
     def on_case_deleted(self):
         """Manejar eliminación de caso"""
         self.selected_case = None
+        if hasattr(self, 'audiencias_module') and self.audiencias_module:
+            # Refresh the calendar and list for the currently selected day
+            self.audiencias_module.actualizar_lista_audiencias()
+            self.audiencias_module.marcar_dias_audiencias_calendario()
+            self.audiencias_module.update_add_audiencia_button_state()
+
 
     def on_case_folder_updated(self, case_data):
         """Manejar actualización de carpeta de caso"""
@@ -641,8 +668,8 @@ class CRMLegalAppRefactored:
         print("Refrescando datos de la ventana principal...")
         self.clientes_module.refresh_data()
         self.casos_module.refresh_data()
-        # También podríamos refrescar la agenda si fuera necesario
-        # self.audiencias_module.refresh_data()
+        if hasattr(self, 'audiencias_module') and self.audiencias_module:
+            self.audiencias_module.refresh_data()
     # === MÉTODOS DE NOTIFICACIONES Y BANDEJA (mantenidos del original) ===
     
     def verificar_recordatorios_periodicamente(self):
